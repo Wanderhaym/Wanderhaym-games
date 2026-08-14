@@ -455,9 +455,9 @@ img {
 
 /* ---------- Адаптивность ---------- */
 @media (max-width: 640px) {
-  .hero { padding: 44px 0 40px; }
+  .hero { padding: 28px 0 8px; }
   .nav-links a { padding: 8px 8px; font-size: 13px; }
   .hero-showcase { grid-template-columns: 1fr; }
   .hero-actions .btn { flex: 1 1 100%; justify-content: center; }
-  .section { padding: 44px 0; }
+  .section { padding: 8px 0 24px; }
 }
