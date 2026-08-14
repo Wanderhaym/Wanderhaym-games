@@ -54,21 +54,51 @@
 
     audio.volume = 0.05;
     audio.loop = true;
+    audio.preload = 'auto';
+
+    var started = false;
 
     function play() {
+      if (!audio.paused) return;
       var p = audio.play();
-      if (p && p.catch) p.catch(function () {});
+      if (p && p.catch) {
+        p.catch(function (err) {
+          // Если файл ещё не загружен — попробуем позже.
+          console.warn('Music play error:', err);
+        });
+      }
     }
     function pause() {
       audio.pause();
     }
 
-    // Первое взаимодействие пользователя разрешает воспроизведение.
-    var started = false;
+    // Вызываем play() синхронно в обработчике первого жеста — так iOS
+    // Safari и мобильные браузеры разрешают запуск звука. Повторяем
+    // несколько раз с задержкой, чтобы учесть медленную загрузку файла.
     function startOnce() {
       if (started) return;
       started = true;
+
+      // Первый вызов — прямо в обработчике жеста (синхронно).
       play();
+
+      // Если файл ещё грузится — дополнительные попытки после загрузки.
+      audio.addEventListener('canplaythrough', function onReady() {
+        play();
+        audio.removeEventListener('canplaythrough', onReady);
+      });
+
+      // Страховка: несколько повторов с интервалом, пока не заиграет.
+      var attempts = 0;
+      var timer = setInterval(function () {
+        attempts += 1;
+        if (!audio.paused || attempts > 15) {
+          clearInterval(timer);
+          return;
+        }
+        play();
+      }, 400);
+
       document.removeEventListener('click', startOnce);
       document.removeEventListener('touchstart', startOnce);
     }
