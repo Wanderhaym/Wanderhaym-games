@@ -1,0 +1,17 @@
+# Исходные файлы VK Mini App (не нужны для лендинга)
+data.js
+build.mjs
+build.zip
+temp_verify.js
+vite.config.js
+vk-hosting-config.json
+package.json
+package-lock.json
+public/
+
+# Папки сборки и системные файлы
+dist/
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
