@@ -45,12 +45,55 @@
     }).join('');
   }
 
+  // Фоновая музыка: громкость 0.05, зациклена. Запускается после первого
+  // клика/тапа (браузеры блокируют автовоспроизведение звука). При
+  // сворачивании вкладки — пауза, при возврате — продолжение.
+  function setupMusic() {
+    var audio = document.getElementById('bgMusic');
+    if (!audio) return;
+
+    audio.volume = 0.05;
+    audio.loop = true;
+
+    function play() {
+      var p = audio.play();
+      if (p && p.catch) p.catch(function () {});
+    }
+    function pause() {
+      audio.pause();
+    }
+
+    // Первое взаимодействие пользователя разрешает воспроизведение.
+    var started = false;
+    function startOnce() {
+      if (started) return;
+      started = true;
+      play();
+      document.removeEventListener('click', startOnce);
+      document.removeEventListener('touchstart', startOnce);
+    }
+    document.addEventListener('click', startOnce);
+    document.addEventListener('touchstart', startOnce);
+
+    // Пауза при сворачивании вкладки, продолжение при возврате.
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) {
+        pause();
+      } else {
+        play();
+      }
+    });
+    window.addEventListener('pagehide', pause);
+    window.addEventListener('pageshow', play);
+  }
+
   function init() {
     // Текущий год в футере.
     var year = document.getElementById('year');
     if (year) year.textContent = new Date().getFullYear();
 
     renderGames(window.GAMES_DATA || []);
+    setupMusic();
   }
 
   if (document.readyState === 'loading') {
