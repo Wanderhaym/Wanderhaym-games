@@ -55,7 +55,7 @@ window.GAMES_DATA = [
     appId: 54712457,
     title: 'Насколько ты меня знаешь',
     description: 'Проверь, насколько близкие люди знают тебя! Создай викторину о себе, отправь друзьям и узнай, кто наберёт больше баллов.',
-    icon: 'https://sun3-18.vkuserphoto.ru/impg/BW7eNE5zPWr88K48dDVO4yzL2KG1DFQtluECqw/oNT8zgs22vk.jpg?size=139x139&quality=90&sign=e062b269bc84880fbf4862f088ffd5ad',
+    icon: 'https://sun3-13.vkuserphoto.ru/impg/V56F87BYvBNiv7JU5e21MjFYXDnaYAZb7q157A/4rdCcjD-fPk.jpg?size=139x139&quality=90&sign=3b8ec5a2edbcc4b57cc0a24c36907d8c',
     tag: 'Тесты',
   },
   {
@@ -64,5 +64,12 @@ window.GAMES_DATA = [
     description: 'Собери 27 пар из осколков. Только 1 из 10 пройдёт. Прогресс сохранится. Бросишь вызов?',
     icon: 'https://sun3-13.vkuserphoto.ru/impg/raKZ38q7y76iXe7mB4tzrue6bRw_2-UGoAS2GQ/6yDYKoHY4DA.jpg?size=139x139&quality=90&sign=4c0e5c297ad39f08b00dca49bc4d44c1',
     tag: 'Головоломки',
+  },
+  {
+    appId: 54722527,
+    title: 'Правда или Ложь',
+    description: 'Проверь свою внимательность! Создай викторину с утверждениями, где одно — ложь, а остальные — правда. Отправь другу и узнай, насколько хорошо они отличают правду от вымысла.',
+    icon: 'https://sun3-18.vkuserphoto.ru/impg/5kSZeh4nP648-Tm_yH9YcLrUa2PXMvFbNiUvkA/NuEchqchICc.jpg?size=139x139&quality=90&sign=63b3484f9ce7a428731edd1434323143',
+    tag: 'Викторины',
   },
 ];
