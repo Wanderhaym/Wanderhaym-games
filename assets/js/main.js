@@ -59,7 +59,7 @@
 
   function effectMarkup(effect) {
     switch (effect.variant) {
-      case 'domino': return '<div class="panel-fx panel-fx--domino" aria-hidden="true"><span class="fx-domino d1"></span><span class="fx-domino d2"></span><span class="fx-domino d3"></span><span class="fx-domino d4"></span><span class="fx-domino d5"></span></div>';
+      case 'domino': return '<div class="panel-fx panel-fx--domino" aria-hidden="true"><span class="fx-domino d1"><i class="domino-half pip-1"></i><i class="domino-half pip-6"></i></span><span class="fx-domino d2"><i class="domino-half pip-2"></i><i class="domino-half pip-5"></i></span><span class="fx-domino d3"><i class="domino-half pip-3"></i><i class="domino-half pip-4"></i></span><span class="fx-domino d4"><i class="domino-half pip-0"></i><i class="domino-half pip-2"></i></span><span class="fx-domino d5"><i class="domino-half pip-6"></i><i class="domino-half pip-6"></i></span></div>';
       case 'pulse': return '<div class="panel-fx panel-fx--pulse" aria-hidden="true"><span class="fx-ring r1"></span><span class="fx-ring r2"></span><span class="fx-ring r3"></span><span class="fx-pulse-line"></span></div>';
       case 'truth': return '<div class="panel-fx panel-fx--truth" aria-hidden="true"><span class="fx-word w1">TRUE</span><span class="fx-word w2">FALSE</span><span class="fx-word w3">TRUE</span></div>';
       case 'voice': return '<div class="panel-fx panel-fx--voice" aria-hidden="true"><span class="fx-bar b1"></span><span class="fx-bar b2"></span><span class="fx-bar b3"></span><span class="fx-bar b4"></span><span class="fx-bar b5"></span><span class="fx-bar b6"></span></div>';

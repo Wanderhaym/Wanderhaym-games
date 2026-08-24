@@ -29,7 +29,10 @@
   }
 
   function stringUrl(value) {
-    if (typeof value === 'string' && /^https?:\/\//i.test(value)) return value;
+    if (typeof value !== 'string') return '';
+    var url = value.trim();
+    if (/^https?:\/\//i.test(url)) return url;
+    if (/^(?:\.\.?\/|\/)?assets\//i.test(url)) return url;
     return '';
   }
 
@@ -46,7 +49,7 @@
     return '';
   }
 
-  // Приоритет отдан большой обложке/«большому сниппету», если такой URL
+  // Приоритет отдан локальной обложке или «большому сниппету», если такой путь
   // будет добавлен в данные игры. Поддерживаются несколько типичных имён поля,
   // чтобы не привязывать витрину к одному формату источника.
   function explicitLargeCover(game) {
