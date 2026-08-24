@@ -1,0 +1,211 @@
+/* Живой маскот поверх процедурного мира. Слой не перехватывает ввод: удар
+   запускается событием смены игры из main.js. */
+.mascot-stage {
+  --gaze-x: 0px;
+  --gaze-y: 0px;
+  --mascot-lean: 0deg;
+  position: fixed;
+  z-index: 4;
+  left: clamp(-48px, .4vw, 12px);
+  bottom: 0;
+  width: clamp(250px, 21.5vw, 380px);
+  aspect-ratio: .86;
+  pointer-events: none;
+  perspective: 900px;
+  transform: translateZ(0);
+  filter: drop-shadow(0 32px 38px rgba(0,0,0,.55));
+}
+
+.mascot-aura {
+  position: absolute;
+  left: 10%;
+  right: -8%;
+  bottom: 3%;
+  height: 34%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb,var(--active-accent) 23%,#ff7628 18%), transparent 68%);
+  filter: blur(30px);
+  opacity: .68;
+  transform: rotate(-7deg);
+}
+
+.mascot-rig,
+.mascot-visual {
+  position: absolute;
+  inset: 0;
+  transform-origin: 48% 88%;
+}
+
+.mascot-rig {
+  animation: mascotBreathe 4.8s ease-in-out infinite;
+  will-change: transform;
+}
+
+.mascot-visual {
+  transition: transform .22s ease-out,filter .25s ease;
+  transform-origin: 48% 88%;
+}
+
+.mascot-pose {
+  position: absolute;
+  inset: auto 0 0;
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.mascot-pose--idle { opacity: 1; transition: opacity .06s linear; }
+.mascot-pose--impact { opacity: 0; transform: translate3d(2%,2%,0) scale(.98); transition: opacity .06s linear; }
+
+.mascot-stage.is-hitting .mascot-rig {
+  animation: mascotStrike .72s cubic-bezier(.18,.76,.22,1) both;
+}
+
+.mascot-stage.is-hitting .mascot-pose--idle {
+  opacity: 0;
+}
+
+.mascot-stage.is-hitting .mascot-pose--impact {
+  opacity: 1;
+}
+
+.mascot-anvil {
+  position: absolute;
+  z-index: -1;
+  right: -12%;
+  bottom: -1.5%;
+  width: 52%;
+  height: 22%;
+  opacity: .82;
+  transform: perspective(500px) rotateX(4deg) rotateY(-5deg);
+  transform-origin: center bottom;
+}
+
+.mascot-anvil-sprite {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: saturate(1.16) contrast(1.04) drop-shadow(0 0 18px rgba(255,92,8,.36));
+  transition: opacity .09s linear, filter .12s ease;
+}
+
+.mascot-anvil-sprite--idle { opacity: 1; }
+.mascot-anvil-sprite--hit { opacity: 0; }
+
+.mascot-stage.is-impacting .mascot-anvil-sprite--idle { opacity: 0; }
+.mascot-stage.is-impacting .mascot-anvil-sprite--hit {
+  opacity: 1;
+  filter: saturate(1.48) brightness(1.18) drop-shadow(0 0 34px rgba(255,115,12,.76));
+}
+
+.mascot-impact {
+  position: absolute;
+  z-index: 5;
+  right: 5.5%;
+  bottom: 10%;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+}
+
+.mascot-impact::before,
+.mascot-impact::after {
+  content: '';
+  position: absolute;
+  inset: -44px;
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(.15);
+}
+
+.mascot-impact::before {
+  background: radial-gradient(circle,#fff 0 4%,#fff3a8 7%,#ffb126 18%,#ff5b0a 35%,transparent 66%);
+  mix-blend-mode: screen;
+}
+
+.mascot-impact::after {
+  inset: -28px;
+  border: 2px solid rgba(255,183,55,.88);
+  box-shadow: 0 0 24px #ff6a0b,inset 0 0 18px #ff9b16;
+}
+
+.mascot-stage.is-impacting .mascot-impact::before { animation: mascotFlash .38s ease-out; }
+.mascot-stage.is-impacting .mascot-impact::after { animation: impactRing .48s ease-out; }
+.mascot-stage.is-impacting .mascot-anvil { animation: anvilKick .34s ease-out; }
+
+.screen-sparks {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  contain: size layout paint;
+}
+
+.screen-impact-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 74;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at var(--impact-x) var(--impact-y),rgba(255,251,217,.85),rgba(255,119,18,.24) 9%,transparent 36%);
+}
+
+.screen-impact-flash.is-active { animation: screenFlash .42s ease-out; }
+
+@keyframes mascotBreathe {
+  0%,100% { transform: translate3d(0,0,0) rotate(.15deg); }
+  50% { transform: translate3d(0,-5px,0) rotate(-.25deg); }
+}
+
+@keyframes mascotStrike {
+  0% { transform: translate3d(0,0,0) rotate(0); }
+  20% { transform: translate3d(-2%,-2%,0) rotate(-3deg) scale(1.015); }
+  48% { transform: translate3d(2.5%,2.2%,26px) rotate(2.4deg) scale(1.025); }
+  63% { transform: translate3d(1.2%,1.1%,0) rotate(.8deg) scale(.985); }
+  100% { transform: translate3d(0,0,0) rotate(0); }
+}
+
+@keyframes mascotFlash { 0% { opacity: 0;transform:scale(.12) } 24% { opacity: 1;transform:scale(1) } 100% { opacity:0;transform:scale(2.3) } }
+@keyframes impactRing { 0% { opacity:.9;transform:scale(.1) } 100% { opacity:0;transform:scale(2.7) } }
+@keyframes anvilKick {
+  0%,100% { transform:perspective(500px) rotateX(4deg) rotateY(-5deg) translateY(0) scale(1); }
+  34% { transform:perspective(500px) rotateX(7deg) rotateY(-3deg) translateY(5px) scale(.97); }
+}
+
+@keyframes screenFlash { 0% { opacity:0 } 18% { opacity:.8 } 100% { opacity:0 } }
+
+@media (max-width: 1180px) {
+  .mascot-stage { width: clamp(210px,20vw,294px); left: -46px; bottom: 0; opacity: .9; }
+}
+
+@media (max-width: 780px) {
+  .mascot-stage {
+    z-index: 4;
+    left: auto;
+    right: -13vw;
+    bottom: 8px;
+    width: clamp(125px,34vw,184px);
+    opacity: .8;
+  }
+  .mascot-anvil { right: -8%; width: 56%; }
+}
+
+@media (max-width: 420px) and (max-height: 720px) {
+  .mascot-stage { width: 112px; right: -34px; bottom: 4px; opacity: .7; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot-rig { animation: none; }
+  .mascot-visual { transform: none; transition: none; }
+  .mascot-stage.is-hitting .mascot-rig,
+  .mascot-stage.is-hitting .mascot-pose--idle,
+  .mascot-stage.is-hitting .mascot-pose--impact { transition-duration: .01ms; }
+}

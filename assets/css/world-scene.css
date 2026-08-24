@@ -1,0 +1,98 @@
+/* Единая процедурная сцена за каруселью. Canvas не перехватывает ввод и
+   остаётся чисто декоративным слоем, поэтому механика карточек не меняется. */
+.world-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #030407;
+  isolation: isolate;
+}
+
+.world-canvas {
+  position: absolute;
+  inset: -2%;
+  width: 104%;
+  height: 104%;
+  opacity: 0;
+  transform: scale(1.025);
+  filter: saturate(1.12) contrast(1.04);
+  transition: opacity 1.2s ease;
+}
+
+html[data-world-ready="true"] .world-canvas {
+  opacity: .96;
+}
+
+.world-vignette,
+.world-flare {
+  position: absolute;
+  inset: 0;
+}
+
+.world-vignette {
+  z-index: 2;
+  background:
+    radial-gradient(circle at 50% 45%, transparent 12%, rgba(2,3,6,.16) 53%, rgba(2,3,6,.78) 100%),
+    linear-gradient(90deg, rgba(2,3,6,.54), transparent 23%, transparent 77%, rgba(2,3,6,.54));
+}
+
+.world-flare {
+  z-index: 1;
+  opacity: .46;
+  background:
+    radial-gradient(circle at var(--world-pointer-x, 50%) var(--world-pointer-y, 50%),
+      color-mix(in srgb, var(--active-accent) 13%, transparent) 0,
+      transparent 22%);
+  mix-blend-mode: screen;
+  transition: background .7s ease;
+}
+
+/* Старые CSS-огни остаются мягким резервом и добавляют глубину над canvas. */
+html[data-world-ready="true"] .ambient {
+  z-index: 1;
+  background: transparent;
+  mix-blend-mode: screen;
+}
+
+html[data-world-ready="true"] .ambient-orb {
+  opacity: .11;
+  filter: blur(110px);
+}
+
+html[data-world-ready="true"] .ambient-grid {
+  opacity: .52;
+  transition: opacity .7s ease, background-size .8s cubic-bezier(.2,.75,.16,1);
+}
+
+html[data-world-energy="high"] .ambient-grid {
+  opacity: .78;
+  background-size: 64px 64px;
+}
+
+@media (max-width: 780px) {
+  .world-canvas {
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: none;
+    filter: saturate(1.05) contrast(1.02);
+  }
+
+  .world-vignette {
+    background: radial-gradient(circle at 50% 42%, transparent 8%, rgba(2,3,6,.18) 50%, rgba(2,3,6,.72) 100%);
+  }
+
+  html[data-world-ready="true"] .ambient-grid {
+    opacity: .34;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world-canvas,
+  .world-flare,
+  html[data-world-ready="true"] .ambient-grid {
+    transition: none !important;
+  }
+}

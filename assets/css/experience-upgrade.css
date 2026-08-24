@@ -6,6 +6,67 @@ body {
   --launch-y: 50vh;
 }
 
+/* Кинематографичная композиция: у текста и действий есть собственные чистые
+   зоны, а карта игры остаётся центром сцены. Маскот живёт ниже левого края. */
+.site-hud {
+  height: 92px;
+  border-bottom-color: rgba(255,255,255,.1);
+  background: linear-gradient(to bottom, rgba(5,6,8,.92), rgba(5,6,8,.26) 72%, transparent);
+}
+
+.brand-mark {
+  border-color: color-mix(in srgb, var(--active-accent) 48%, rgba(255,255,255,.24));
+  box-shadow: inset 0 0 24px color-mix(in srgb, var(--active-accent) 14%, transparent), 0 0 26px rgba(0,0,0,.2);
+}
+
+.intro-copy {
+  max-width: min(31vw, 420px);
+  padding: 14px 18px 16px;
+  border-left: 1px solid color-mix(in srgb, var(--active-accent) 45%, transparent);
+  background: linear-gradient(90deg, rgba(5,6,8,.72), rgba(5,6,8,.32) 72%, transparent);
+  text-shadow: 0 10px 35px rgba(0,0,0,.75);
+}
+
+.intro-copy h1 {
+  max-width: 8ch;
+  text-wrap: balance;
+}
+
+.scene-shell {
+  perspective-origin: 55% 45%;
+}
+
+.scene {
+  transform: translateX(clamp(26px, 3.2vw, 62px));
+}
+
+.game-detail {
+  padding: 24px;
+  border-left: 1px solid rgba(255,255,255,.13);
+  background: linear-gradient(90deg, transparent, rgba(5,6,8,.38) 14%, rgba(5,6,8,.7));
+  text-shadow: 0 8px 28px rgba(0,0,0,.72);
+}
+
+.game-detail h2 {
+  max-width: 9ch;
+}
+
+.deck-controls {
+  padding: 7px 10px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 999px;
+  background: rgba(5,6,8,.48);
+  box-shadow: 0 12px 42px rgba(0,0,0,.27);
+  backdrop-filter: blur(14px);
+}
+
+.interaction-hint {
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: rgba(5,6,8,.38);
+  backdrop-filter: blur(10px);
+}
+
 body::after {
   content: '';
   position: fixed;
@@ -194,6 +255,30 @@ body.is-game-launching .mini-footer {
 }
 
 @media (max-width: 780px) {
+  .site-hud { height: 72px; }
+
+  .intro-copy {
+    padding: 8px 12px;
+    border-left: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--active-accent) 30%, transparent);
+    background: linear-gradient(to bottom, rgba(5,6,8,.66), transparent);
+  }
+
+  .scene-shell { perspective-origin: 50% 48%; }
+
+  .scene { transform: none; }
+
+  .game-detail {
+    padding: 0 6px;
+    border-left: 0;
+    background: none;
+  }
+
+  .deck-controls {
+    padding: 4px 8px;
+    bottom: 22px;
+  }
+
   .game-panel.is-active.is-launching {
     transform: translate3d(0,0,220px) scale(1.1) !important;
   }

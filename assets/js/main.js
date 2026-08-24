@@ -119,6 +119,16 @@
       playEl.href = gameUrl(game.appId);
       playEl.setAttribute('aria-label', 'Играть: ' + (game.title || 'игра'));
     }
+    window.dispatchEvent(new CustomEvent('wanderhaym:gamechange', {
+      detail: {
+        index: activeIndex,
+        count: games.length,
+        title: game.title || 'Wanderhaym Games',
+        variant: meta.variant,
+        accent: meta.accent,
+        accentSoft: meta.accentSoft
+      }
+    }));
   }
 
   function updateProgress() {
@@ -266,24 +276,53 @@
     if (!audio) return;
     audio.volume = 0.05;
     audio.loop = true;
-    var started = false;
-    function play() {
-      if (!started || !audio.paused) return;
+    audio.setAttribute('playsinline', '');
+    audio.setAttribute('webkit-playsinline', '');
+    var unlocked = false;
+    var attempting = false;
+
+    function removeUnlockListeners() {
+      document.removeEventListener('touchstart', unlockAudio);
+      document.removeEventListener('pointerdown', unlockAudio);
+      document.removeEventListener('click', unlockAudio);
+      document.removeEventListener('keydown', unlockAudio);
+    }
+
+    function unlockAudio() {
+      if (unlocked || attempting) return;
+      attempting = true;
+      var promise;
+      try { promise = audio.play(); } catch (_) { attempting = false; return; }
+      if (promise && promise.then) {
+        promise.then(function () {
+          unlocked = true;
+          attempting = false;
+          removeUnlockListeners();
+        }).catch(function () {
+          // Мобильный браузер мог отклонить конкретный жест. Оставляем
+          // слушатели, чтобы следующее касание попробовало снова.
+          attempting = false;
+        });
+      } else {
+        unlocked = true;
+        attempting = false;
+        removeUnlockListeners();
+      }
+    }
+
+    function resume() {
+      if (!unlocked || !audio.paused) return;
       var promise = audio.play();
-      if (promise && promise.catch) promise.catch(function () {});
+      if (promise && promise.catch) promise.catch(function () { unlocked = false; });
     }
-    function startOnce() {
-      if (started) return;
-      started = true;
-      play();
-      document.removeEventListener('pointerdown', startOnce);
-      document.removeEventListener('keydown', startOnce);
-    }
-    document.addEventListener('pointerdown', startOnce, { passive: true });
-    document.addEventListener('keydown', startOnce);
-    document.addEventListener('visibilitychange', function () { if (document.hidden) audio.pause(); else play(); });
+
+    document.addEventListener('touchstart', unlockAudio, { passive: true });
+    document.addEventListener('pointerdown', unlockAudio, { passive: true });
+    document.addEventListener('click', unlockAudio, { passive: true });
+    document.addEventListener('keydown', unlockAudio);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) audio.pause(); else resume(); });
     window.addEventListener('pagehide', function () { audio.pause(); });
-    window.addEventListener('pageshow', play);
+    window.addEventListener('pageshow', resume);
   }
 
   function init() {
