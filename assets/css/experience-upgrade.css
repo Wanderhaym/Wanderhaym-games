@@ -1,0 +1,211 @@
+/* Финальный слой поведения: активная карточка оживает сильнее, две игры Домино различаются,
+   а запуск VK Mini App получает короткий zoom/flash-переход. */
+
+body {
+  --launch-x: 50vw;
+  --launch-y: 50vh;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(1.06);
+  background:
+    radial-gradient(circle at var(--launch-x) var(--launch-y),
+      color-mix(in srgb, var(--active-accent) 72%, white 10%) 0,
+      color-mix(in srgb, var(--active-accent-soft) 28%, transparent) 12%,
+      rgba(5, 6, 8, .82) 48%,
+      #050608 78%);
+  transition: opacity .48s cubic-bezier(.2,.75,.16,1), transform .52s cubic-bezier(.2,.75,.16,1);
+}
+
+/* Неактивные панели сохраняют характер, но становятся спокойнее. */
+.game-panel .panel-fx {
+  opacity: .46;
+  filter: saturate(.78) brightness(.82);
+  transform: scale(.975);
+  transform-origin: center;
+  transition: opacity .55s ease, filter .55s ease, transform .7s cubic-bezier(.2,.75,.16,1);
+}
+
+.game-panel:not(.is-active) .panel-fx > * {
+  animation-play-state: paused;
+}
+
+.game-panel.is-active .panel-fx {
+  opacity: 1;
+  filter: saturate(1.28) brightness(1.12);
+  transform: scale(1.035);
+}
+
+.game-panel.is-active .panel-fx > * {
+  animation-play-state: running;
+}
+
+.game-panel.is-active .panel-fx::after {
+  animation: activeFxBreath 2.8s ease-in-out infinite;
+}
+
+.game-panel.is-active .panel-shade {
+  background:
+    linear-gradient(to top,rgba(4,5,8,.96) 0,rgba(4,5,8,.68) 27%,rgba(4,5,8,.08) 62%,rgba(4,5,8,.28) 100%),
+    radial-gradient(circle at 70% 20%,color-mix(in srgb,var(--panel-accent) 28%,transparent),transparent 34%);
+}
+
+@keyframes activeFxBreath {
+  0%, 100% { opacity: .58; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.045); }
+}
+
+/* Домино: Хаос — костяшки ведут себя как разлетающиеся осколки. */
+.game-panel.fx-domino-chaos .panel-fx--domino .fx-domino {
+  animation-name: dominoChaos;
+  animation-timing-function: cubic-bezier(.45,.05,.55,.95);
+  opacity: .72;
+  border-radius: 12px;
+  clip-path: polygon(4% 0, 92% 5%, 100% 88%, 82% 100%, 5% 94%, 0 14%);
+}
+
+.game-panel.fx-domino-chaos .panel-fx--domino .d1 { left: 4%; top: 13%; animation-duration: 5.9s; }
+.game-panel.fx-domino-chaos .panel-fx--domino .d2 { left: 34%; top: 5%; animation-duration: 7.1s; }
+.game-panel.fx-domino-chaos .panel-fx--domino .d3 { right: 4%; top: 18%; animation-duration: 6.3s; }
+.game-panel.fx-domino-chaos .panel-fx--domino .d4 { right: 18%; bottom: 18%; animation-duration: 7.8s; }
+.game-panel.fx-domino-chaos .panel-fx--domino .d5 { left: 9%; bottom: 14%; animation-duration: 5.5s; }
+
+@keyframes dominoChaos {
+  0% { transform: translate3d(-6px,12px,0) rotate(-22deg) scale(.92); }
+  38% { transform: translate3d(12px,-18px,0) rotate(14deg) scale(1.02); }
+  72% { transform: translate3d(-10px,-4px,0) rotate(-7deg) scale(.96); }
+  100% { transform: translate3d(16px,-28px,0) rotate(24deg) scale(1.05); }
+}
+
+/* Домино: Границы — спокойная логическая сетка и подсвеченные границы. */
+.game-panel.fx-domino-borders .panel-fx--domino::before {
+  content: '';
+  position: absolute;
+  inset: 12% 9% 27%;
+  border: 1px solid color-mix(in srgb,var(--panel-accent) 32%,transparent);
+  border-radius: 18px;
+  background-image:
+    linear-gradient(color-mix(in srgb,var(--panel-accent) 16%,transparent) 1px,transparent 1px),
+    linear-gradient(90deg,color-mix(in srgb,var(--panel-accent) 16%,transparent) 1px,transparent 1px);
+  background-size: 54px 54px;
+  box-shadow: inset 0 0 36px rgba(0,0,0,.22),0 0 28px color-mix(in srgb,var(--panel-accent) 8%,transparent);
+  animation: borderGridPulse 4.8s ease-in-out infinite;
+}
+
+.game-panel.fx-domino-borders .panel-fx--domino .fx-domino {
+  width: 58px;
+  height: 96px;
+  border-radius: 12px;
+  opacity: .64;
+  animation-name: dominoBorderSnap;
+  animation-duration: 6.8s;
+}
+
+.game-panel.fx-domino-borders .panel-fx--domino .d1 { left: 14%; top: 17%; }
+.game-panel.fx-domino-borders .panel-fx--domino .d2 { left: 36%; top: 17%; animation-delay: -1.2s; }
+.game-panel.fx-domino-borders .panel-fx--domino .d3 { right: 17%; top: 17%; animation-delay: -2.4s; }
+.game-panel.fx-domino-borders .panel-fx--domino .d4 { right: 28%; bottom: 28%; animation-delay: -3.6s; }
+.game-panel.fx-domino-borders .panel-fx--domino .d5 { left: 24%; bottom: 28%; animation-delay: -4.8s; }
+
+@keyframes dominoBorderSnap {
+  0%,100% { transform: translate3d(0,0,0) rotate(0deg); }
+  45% { transform: translate3d(0,-8px,0) rotate(0deg); }
+  55% { transform: translate3d(8px,-8px,0) rotate(0deg); }
+}
+
+@keyframes borderGridPulse {
+  0%,100% { opacity: .36; }
+  50% { opacity: .78; }
+}
+
+/* Переход перед запуском игры. */
+body.is-game-launching::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+body.is-game-launching .site-hud,
+body.is-game-launching .intro-copy,
+body.is-game-launching .game-detail,
+body.is-game-launching .deck-controls,
+body.is-game-launching .interaction-hint,
+body.is-game-launching .mini-footer {
+  opacity: 0;
+  filter: blur(7px);
+  transition: opacity .28s ease, filter .36s ease;
+}
+
+.scene-shell.is-game-launching .game-panel:not(.is-active) {
+  opacity: 0 !important;
+  filter: blur(10px) brightness(.35) !important;
+  transform: translate3d(calc(var(--offset) * 42vw),calc(var(--abs) * 4vh),calc(var(--abs) * -360px)) rotateY(calc(var(--offset) * -25deg)) scale(.76) !important;
+  transition-duration: .42s !important;
+}
+
+.game-panel.is-active.is-launching {
+  transform: translate3d(0,0,320px) rotateX(var(--tiltX)) rotateY(var(--tiltY)) scale(1.13) !important;
+  opacity: 1 !important;
+  filter: saturate(1.48) brightness(1.28) !important;
+  border-color: color-mix(in srgb,var(--panel-accent) 82%,white 18%) !important;
+  box-shadow:
+    0 45px 150px rgba(0,0,0,.72),
+    0 0 0 1px color-mix(in srgb,var(--panel-accent) 55%,transparent),
+    0 0 140px color-mix(in srgb,var(--panel-accent-soft) 42%,transparent) !important;
+  transition: transform .52s cubic-bezier(.12,.82,.14,1),filter .42s ease,border-color .25s ease,box-shadow .42s ease !important;
+}
+
+.game-panel.is-active.is-launching .panel-bg {
+  transform: scale(1.18) !important;
+  filter: saturate(1.3) contrast(1.08) brightness(1.08);
+}
+
+.game-panel.is-active.is-launching .panel-fx {
+  opacity: 1;
+  filter: saturate(1.65) brightness(1.35);
+  transform: scale(1.12);
+}
+
+.game-panel.is-active.is-launching .panel-noise {
+  opacity: .34;
+  transform: translateX(0) scaleX(1.4);
+}
+
+.scene-shell.is-game-launching .scene-glow {
+  transform: translateY(-2vh) scale(1.32);
+  filter: blur(18px) brightness(1.42);
+  transition: transform .5s cubic-bezier(.2,.75,.16,1),filter .5s ease;
+}
+
+@media (max-width: 780px) {
+  .game-panel.is-active.is-launching {
+    transform: translate3d(0,0,220px) scale(1.1) !important;
+  }
+
+  .game-panel.fx-domino-borders .panel-fx--domino::before {
+    background-size: 42px 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::after,
+  .game-panel .panel-fx,
+  body.is-game-launching .site-hud,
+  body.is-game-launching .intro-copy,
+  body.is-game-launching .game-detail,
+  body.is-game-launching .deck-controls,
+  body.is-game-launching .interaction-hint,
+  body.is-game-launching .mini-footer {
+    transition: none !important;
+  }
+
+  .game-panel.is-active .panel-fx::after,
+  .game-panel.fx-domino-borders .panel-fx--domino::before {
+    animation: none !important;
+  }
+}
