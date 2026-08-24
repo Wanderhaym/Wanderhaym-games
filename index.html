@@ -3,81 +3,91 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Wanderhaym — Создаю игры и приложения на заказ в прямом эфире</title>
-    <meta name="description" content="Создаю игры и приложения на заказ в прямом эфире. Головоломки, казуальные игры, MVP для бизнеса. React, JavaScript, VKUI. Смотри процесс и заказывай проект.">
-    <meta name="keywords" content="Wanderhaym, создание игр, разработка игр на заказ, игры для ВК, инди-игры, головоломки, разработка приложений, стрим-разработка">
+    <title>Wanderhaym Games — интерактивная коллекция игр</title>
+    <meta name="description" content="Интерактивная коллекция VK мини-игр Wanderhaym. Листай игры в пространстве и запускай их прямо во ВКонтакте.">
+    <meta name="keywords" content="Wanderhaym, игры VK, мини-игры, инди-игры, головоломки, нейросети, gamedev">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://wanderhaym.github.io/Wanderhaym-games/">
-    <meta name="theme-color" content="#141414">
+    <meta name="theme-color" content="#050608">
 
-    <!-- Open Graph -->
-    <meta property="og:title" content="Wanderhaym — Создаю игры и приложения на заказ">
-    <meta property="og:description" content="Разработка игр и приложений на заказ в прямом эфире. Портфолио, услуги, процесс.">
+    <meta property="og:title" content="Wanderhaym Games — интерактивная коллекция">
+    <meta property="og:description" content="Путешествуй между играми Wanderhaym и запускай их прямо во ВКонтакте.">
     <meta property="og:image" content="https://wanderhaym.github.io/Wanderhaym-games/og-image.jpg">
     <meta property="og:url" content="https://wanderhaym.github.io/Wanderhaym-games/">
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="Wanderhaym games">
+    <meta property="og:site_name" content="Wanderhaym Games">
 
-    <!-- Фавиконки -->
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
-
     <link rel="stylesheet" href="assets/css/styles.css">
 
-    <!-- Яндекс РСЯ: автоподбор рекламы -->
     <script src="https://yandex.ru/ads/system/context.js" async></script>
     <script data-page-id="19759584" src="https://yandex.ru/ads/system/ap-loader.js" async></script>
 </head>
 <body>
+    <div class="ambient" aria-hidden="true">
+        <div class="ambient-orb ambient-orb-a"></div>
+        <div class="ambient-orb ambient-orb-b"></div>
+        <div class="ambient-grid"></div>
+        <div class="ambient-noise"></div>
+    </div>
 
-    <!-- Hero -->
-    <section class="hero" id="top">
-        <div class="container">
-            <h1>🎮 <span class="accent">Wanderhaym</span> games</h1>
-            <p class="subtitle">
-                Коллекция VK мини-игр от Wanderhaym — тесты, головоломки,
-                генератор идей и многое другое. Играй без установки, прямо во ВКонтакте.
-            </p>
-            <div class="hero-actions">
-                <a class="btn btn-primary" href="https://vk.ru/wanderhayms" target="_blank" rel="noopener">💬 Открыть сообщество</a>
-                <a class="btn btn-orange" href="https://www.donationalerts.com/r/wanderhaym" target="_blank" rel="noopener">☕ Поддержать автора</a>
-            </div>
-        </div>
-    </section>
+    <header class="site-hud">
+        <a class="brand" href="#" aria-label="Wanderhaym Games — на первую игру">
+            <span class="brand-mark">W</span>
+            <span class="brand-copy"><strong>Wanderhaym</strong><small>games</small></span>
+        </a>
+        <nav class="hud-actions" aria-label="Ссылки автора">
+            <a href="https://vk.ru/wanderhayms" target="_blank" rel="noopener">Сообщество</a>
+            <a class="support-link" href="https://www.donationalerts.com/r/wanderhaym" target="_blank" rel="noopener">Поддержать</a>
+        </nav>
+    </header>
 
-    <!-- Игры -->
-    <section class="section" id="games">
-        <div class="container">
-            <div class="games-grid" id="gamesGrid">
+    <main class="experience" id="top">
+        <section class="intro-copy" aria-labelledby="experienceTitle">
+            <p class="eyebrow">Интерактивная коллекция</p>
+            <h1 id="experienceTitle">Выбери игру</h1>
+            <p class="intro-subtitle">Крути колесо мыши или листай пальцем</p>
+        </section>
+
+        <section class="scene-shell" id="gamesScene" aria-label="Карусель игр">
+            <div class="scene-glow" aria-hidden="true"></div>
+            <div class="scene" id="gamesDeck">
                 <div class="games-loading">Загрузка игр…</div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Футер -->
-    <footer class="footer">
-        <div class="container">
-            <div class="brand">
-                <span class="logo">🎮</span>
-                <span>Wanderhaym Games</span>
+        <section class="game-detail" id="gameDetail" aria-live="polite">
+            <div class="detail-meta">
+                <span class="detail-index" id="detailIndex">01 / 01</span>
+                <span class="detail-tag" id="detailTag">Игра</span>
             </div>
-            <p class="copy">© <span id="year"></span> Wanderhaym Games. Все мини-игры работают внутри ВКонтакте.</p>
-            <div class="tags">
-                <span>#Wanderhaym</span><span>#разработкаигр</span><span>#созданиеигр</span>
-                <span>#геймдев</span><span>#индиразработка</span><span>#разработканазаказ</span>
-                <span>#созданиеприложений</span><span>#игрыподключ</span><span>#программистназаказ</span>
-                <span>#индиигры</span><span>#головоломка</span><span>#игрыдляVK</span>
-                <span>#стримразработка</span><span>#нейросети</span><span>#искусственныйинтеллект</span>
-                <span>#gamedev</span><span>#indiedev</span><span>#gamedevelopment</span>
-                <span>#gamedesign</span><span>#indiegame</span><span>#appdevelopment</span>
-                <span>#customdevelopment</span>
-            </div>
+            <h2 id="detailTitle">Wanderhaym Games</h2>
+            <p id="detailDescription">Выберите игру в пространстве.</p>
+            <a class="play-button" id="playGame" href="#" target="_blank" rel="noopener">
+                <span>Играть</span>
+                <span class="play-arrow" aria-hidden="true">↗</span>
+            </a>
+        </section>
+
+        <div class="deck-controls" aria-label="Навигация по играм">
+            <button class="deck-arrow" id="prevGame" type="button" aria-label="Предыдущая игра">←</button>
+            <div class="deck-progress" id="deckProgress" aria-hidden="true"></div>
+            <button class="deck-arrow" id="nextGame" type="button" aria-label="Следующая игра">→</button>
         </div>
+
+        <p class="interaction-hint" aria-hidden="true">
+            <span class="mouse-icon">↕</span>
+            <span>Колесо · свайп · стрелки</span>
+        </p>
+    </main>
+
+    <footer class="mini-footer">
+        <span>© <span id="year"></span> Wanderhaym Games</span>
+        <span>VK Mini Apps</span>
     </footer>
 
-    <!-- Фоновая музыка: запускается после первого клика/тапа (браузеры
-         блокируют автовоспроизведение), громкость 0.05, зациклена. -->
     <audio id="bgMusic" src="assets/music.mp3" loop preload="auto"></audio>
 
     <script src="assets/js/games-data.js"></script>
