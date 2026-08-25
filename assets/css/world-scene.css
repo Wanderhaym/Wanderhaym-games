@@ -86,6 +86,13 @@ html[data-world-energy="high"] .ambient-grid {
 
   html[data-world-ready="true"] .ambient-grid {
     opacity: .34;
+    background-size: 44px 44px;
+    transition: opacity .7s ease;
+  }
+
+  html[data-world-energy="high"] .ambient-grid {
+    opacity: .34;
+    background-size: 44px 44px;
   }
 }
 

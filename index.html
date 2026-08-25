@@ -25,11 +25,22 @@
     <link rel="stylesheet" href="assets/css/experience-upgrade.css">
     <link rel="stylesheet" href="assets/css/world-scene.css">
     <link rel="stylesheet" href="assets/css/mascot-scene.css">
+    <link rel="stylesheet" href="assets/css/cinematic-experience.css">
 
     <script src="https://yandex.ru/ads/system/context.js" async></script>
     <script data-page-id="19759584" src="https://yandex.ru/ads/system/ap-loader.js" async></script>
 </head>
 <body>
+    <div class="experience-loader" id="experienceLoader" role="status" aria-live="polite">
+        <div class="loader-core">
+            <span class="loader-mark" aria-hidden="true">W</span>
+            <p class="loader-kicker">Wanderhaym Interactive</p>
+            <p class="loader-title">Собираем игровой мир</p>
+            <div class="loader-track" aria-hidden="true"><i id="loaderProgress"></i></div>
+            <p class="loader-value" id="loaderValue">00%</p>
+        </div>
+    </div>
+
     <div class="world-layer" aria-hidden="true">
         <canvas class="world-canvas" id="worldCanvas"></canvas>
         <div class="world-flare"></div>
@@ -47,13 +58,13 @@
         <div class="mascot-aura" aria-hidden="true"></div>
         <div class="mascot-rig">
             <div class="mascot-visual">
-                <img class="mascot-pose mascot-pose--idle" src="assets/mascot/wanderhaym-cat-idle.png" alt="" draggable="false" decoding="async">
-                <img class="mascot-pose mascot-pose--impact" src="assets/mascot/wanderhaym-cat-impact.png" alt="" draggable="false" decoding="async">
+                <img class="mascot-pose mascot-pose--idle" src="assets/mascot/wanderhaym-cat-idle.png" alt="" draggable="false" decoding="async" loading="eager" fetchpriority="high">
+                <img class="mascot-pose mascot-pose--impact" src="assets/mascot/wanderhaym-cat-impact.png" alt="" draggable="false" decoding="async" loading="eager">
             </div>
         </div>
         <div class="mascot-anvil" aria-hidden="true">
-            <img class="mascot-anvil-sprite mascot-anvil-sprite--idle" src="assets/mascot/impact-platform-idle.png" alt="" draggable="false" decoding="async">
-            <img class="mascot-anvil-sprite mascot-anvil-sprite--hit" src="assets/mascot/impact-platform-hit.png" alt="" draggable="false" decoding="async">
+            <img class="mascot-anvil-sprite mascot-anvil-sprite--idle" src="assets/mascot/impact-platform-idle.png" alt="" draggable="false" decoding="async" loading="eager">
+            <img class="mascot-anvil-sprite mascot-anvil-sprite--hit" src="assets/mascot/impact-platform-hit.png" alt="" draggable="false" decoding="async" loading="eager">
         </div>
         <div class="mascot-impact" aria-hidden="true"></div>
     </aside>
@@ -67,6 +78,10 @@
             <span class="brand-copy"><strong>Wanderhaym</strong><small>games</small></span>
         </a>
         <nav class="hud-actions" aria-label="Ссылки автора">
+            <button class="audio-toggle" id="audioToggle" type="button" aria-label="Включить или выключить музыку" aria-pressed="false">
+                <span class="audio-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                <span class="audio-label">Звук</span>
+            </button>
             <a href="https://vk.ru/wanderhayms" target="_blank" rel="noopener">Сообщество</a>
             <a class="support-link" href="https://www.donationalerts.com/r/wanderhaym" target="_blank" rel="noopener">Поддержать</a>
         </nav>
@@ -119,6 +134,7 @@
     <audio id="bgMusic" src="assets/music.mp3" loop preload="auto" playsinline webkit-playsinline></audio>
 
     <script src="assets/js/games-data.js"></script>
+    <script src="assets/js/cinematic-experience.js"></script>
     <script src="assets/js/world-scene.js"></script>
     <script src="assets/js/mascot-scene.js"></script>
     <script src="assets/js/main.js"></script>

@@ -21,6 +21,27 @@
 
   if (!stage || !impact || !sparkLayer || !sparkContext) return;
 
+  function prepareMascotFrames() {
+    var frames = Array.prototype.slice.call(stage.querySelectorAll('.mascot-pose, .mascot-anvil-sprite'));
+    var waits = frames.map(function (frame) {
+      if (frame.complete && frame.naturalWidth) {
+        if (frame.decode) return frame.decode().catch(function () {});
+        return Promise.resolve();
+      }
+      return new Promise(function (resolve) {
+        frame.addEventListener('load', resolve, { once: true });
+        frame.addEventListener('error', resolve, { once: true });
+      }).then(function () {
+        if (frame.decode) return frame.decode().catch(function () {});
+      });
+    });
+    Promise.all(waits).then(function () {
+      stage.classList.add('mascot-assets-ready');
+    });
+  }
+
+  prepareMascotFrames();
+
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
   }

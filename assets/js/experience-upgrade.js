@@ -124,17 +124,6 @@
     coverObserver.observe(deck, { childList: true, subtree: false });
   }
 
-  function decorateDominoVariants() {
-    var panels = document.querySelectorAll('.game-panel[data-variant="domino"]');
-    Array.prototype.forEach.call(panels, function (panel) {
-      var title = panel.querySelector('.panel-title');
-      var text = String(title && title.textContent || '').toLowerCase();
-      panel.classList.remove('fx-domino-chaos', 'fx-domino-borders');
-      if (text.indexOf('хаос') !== -1) panel.classList.add('fx-domino-chaos');
-      else if (text.indexOf('границ') !== -1) panel.classList.add('fx-domino-borders');
-    });
-  }
-
   function resetLaunchState() {
     launching = false;
     window.clearTimeout(launchResetTimer);
@@ -211,7 +200,6 @@
   }
 
   function init() {
-    decorateDominoVariants();
     upgradePanelCovers();
     observePanels();
     document.addEventListener('click', handleClickCapture, true);

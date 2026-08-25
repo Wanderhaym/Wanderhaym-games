@@ -1,0 +1,110 @@
+/* Общий режиссёрский слой: честная загрузка критических кадров, связные
+   переходы сцены и минималистичное управление звуком. */
+.experience-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 46%, color-mix(in srgb,var(--active-accent) 9%,transparent), transparent 34%),
+    #030407;
+  transition: opacity .65s cubic-bezier(.2,.75,.16,1), visibility .65s;
+}
+
+.experience-loader::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: .23;
+  background-image:
+    linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(circle,#000,transparent 72%);
+}
+
+.experience-loader.is-leaving {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.loader-core { position: relative; width: min(82vw,420px); text-align: center; }
+.loader-mark {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 22px;
+  border: 1px solid color-mix(in srgb,var(--active-accent) 55%,rgba(255,255,255,.2));
+  border-radius: 18px;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+  box-shadow: inset 0 0 32px color-mix(in srgb,var(--active-accent) 14%,transparent),0 0 42px rgba(0,0,0,.4);
+  animation: loaderBreathe 1.8s ease-in-out infinite;
+}
+.loader-kicker { margin: 0 0 9px; color: var(--active-accent); font-size: 9px; font-weight: 800; letter-spacing: .28em; text-transform: uppercase; }
+.loader-title { margin: 0; color: #fff; font-size: clamp(25px,4vw,42px); font-weight: 750; letter-spacing: -.045em; }
+.loader-track { position: relative; height: 2px; margin: 32px 0 12px; overflow: hidden; background: rgba(255,255,255,.1); }
+.loader-track i { display: block; width: var(--loader-progress,0%); height: 100%; background: linear-gradient(90deg,var(--active-accent-soft),var(--active-accent),#fff); box-shadow: 0 0 16px var(--active-accent); transition: width .28s ease; }
+.loader-value { margin: 0; color: rgba(255,255,255,.48); font-size: 10px; font-variant-numeric: tabular-nums; letter-spacing: .18em; }
+
+.audio-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: 999px;
+  background: rgba(8,10,14,.32);
+  cursor: pointer;
+  transition: border-color .25s ease,background .25s ease,color .25s ease;
+}
+.audio-toggle:hover,.audio-toggle[aria-pressed="true"] { border-color: color-mix(in srgb,var(--active-accent) 46%,transparent); color: var(--active-accent); background: color-mix(in srgb,var(--active-accent) 7%,rgba(8,10,14,.48)); }
+.audio-bars { display: flex; align-items: center; gap: 2px; width: 15px; height: 14px; }
+.audio-bars i { width: 2px; height: 3px; border-radius: 2px; background: currentColor; transform-origin: center; opacity: .54; }
+.audio-toggle[aria-pressed="true"] .audio-bars i { animation: audioBar .8s ease-in-out infinite alternate; opacity: 1; }
+.audio-toggle[aria-pressed="true"] .audio-bars i:nth-child(2) { animation-delay: -.34s; }
+.audio-toggle[aria-pressed="true"] .audio-bars i:nth-child(3) { animation-delay: -.58s; }
+.audio-toggle[aria-pressed="true"] .audio-bars i:nth-child(4) { animation-delay: -.18s; }
+.audio-label { font-size: 9px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+
+.experience::after {
+  content: '';
+  position: absolute;
+  z-index: 18;
+  top: 86px;
+  bottom: 0;
+  left: -12%;
+  width: 18%;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(90deg,transparent,color-mix(in srgb,var(--active-accent) 10%,transparent),rgba(255,255,255,.08),transparent);
+  transform: skewX(-12deg);
+  mix-blend-mode: screen;
+}
+.experience.is-scene-shifting::after { animation: sceneSweep .62s cubic-bezier(.2,.75,.16,1); }
+.experience.is-scene-shifting .intro-copy,
+.experience.is-scene-shifting .game-detail { animation: uiSettle .62s cubic-bezier(.2,.75,.16,1); }
+
+@keyframes loaderBreathe { 50% { transform: translateY(-4px) scale(1.035); box-shadow: inset 0 0 38px color-mix(in srgb,var(--active-accent) 21%,transparent),0 0 54px color-mix(in srgb,var(--active-accent) 8%,transparent); } }
+@keyframes audioBar { from { height: 3px; } to { height: 13px; } }
+@keyframes sceneSweep { 0% { left:-18%;opacity:0 } 20% { opacity:.72 } 100% { left:112%;opacity:0 } }
+@keyframes uiSettle { 0% { opacity:.62;filter:blur(2px); } 100% { opacity:1;filter:none; } }
+
+@media (max-width: 780px) {
+  .audio-toggle { padding: 8px; }
+  .audio-label { display: none; }
+  .hud-actions > a:not(.support-link) { display: none; }
+  .experience::after { display: none; }
+  .experience.is-scene-shifting .intro-copy,
+  .experience.is-scene-shifting .game-detail { animation: none; }
+  .experience-loader::before { background-size: 42px 42px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-mark,.audio-bars i,.experience.is-scene-shifting::after,.experience.is-scene-shifting .intro-copy,.experience.is-scene-shifting .game-detail { animation: none !important; }
+}
