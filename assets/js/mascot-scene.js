@@ -47,14 +47,7 @@
     return Math.max(min, Math.min(max, value));
   }
 
-  function playHitSound() {
-    try {
-      var sound = new Audio('assets/mascot/hammer-hit.wav');
-      sound.volume = .42;
-      var playback = sound.play();
-      if (playback && playback.catch) playback.catch(function () {});
-    } catch (_) {}
-
+  function playSyntheticHit() {
     try {
       var AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) return;
@@ -66,7 +59,7 @@
       oscillator.frequency.setValueAtTime(146, now);
       oscillator.frequency.exponentialRampToValueAtTime(48, now + .24);
       gain.gain.setValueAtTime(.001, now);
-      gain.gain.exponentialRampToValueAtTime(.24, now + .008);
+      gain.gain.exponentialRampToValueAtTime(.035, now + .008);
       gain.gain.exponentialRampToValueAtTime(.001, now + .3);
       oscillator.connect(gain).connect(context.destination);
       oscillator.start(now);
@@ -75,9 +68,20 @@
     } catch (_) {}
   }
 
+  function playHitSound() {
+    try {
+      var sound = new Audio('assets/mascot/hammer-hit.wav');
+      sound.volume = .09;
+      var playback = sound.play();
+      if (playback && playback.catch) playback.catch(playSyntheticHit);
+    } catch (_) {
+      playSyntheticHit();
+    }
+  }
+
   function resizeSparkCanvas() {
     compactRendering = window.innerWidth < 781;
-    canvasDpr = Math.min(window.devicePixelRatio || 1, compactRendering ? 1 : 1.5);
+    canvasDpr = Math.min(window.devicePixelRatio || 1, compactRendering ? 1 : 1.25);
     var width = Math.max(1, Math.round(window.innerWidth * canvasDpr));
     var height = Math.max(1, Math.round(window.innerHeight * canvasDpr));
     if (sparkLayer.width !== width || sparkLayer.height !== height) {
@@ -181,8 +185,8 @@
     var originX = rect.left + rect.width * .5;
     var originY = rect.top + rect.height * .5;
     var compact = window.innerWidth < 781;
-    var sideCount = reducedMotion ? 5 : (compact ? 12 : 28);
-    var viewerCount = reducedMotion ? 3 : (compact ? 5 : 12);
+    var sideCount = reducedMotion ? 5 : (compact ? 12 : 22);
+    var viewerCount = reducedMotion ? 3 : (compact ? 5 : 8);
 
     sparkLayer.style.setProperty('--impact-x', originX + 'px');
     sparkLayer.style.setProperty('--impact-y', originY + 'px');

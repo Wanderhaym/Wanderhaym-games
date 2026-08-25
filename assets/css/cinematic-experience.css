@@ -72,6 +72,41 @@
 .audio-toggle[aria-pressed="true"] .audio-bars i:nth-child(4) { animation-delay: -.18s; }
 .audio-label { font-size: 9px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
 
+/* Общая оптимизация композитинга: в кадре остаются только ближайшие карточки,
+   а дорогая цветовая фильтрация не пересчитывается при каждом переходе. */
+.game-panel.is-distant { visibility: hidden; }
+.game-panel { filter: none !important; }
+.game-panel .panel-fx { filter: none !important; }
+.game-panel.is-active {
+  box-shadow: 0 28px 82px rgba(0,0,0,.62),0 0 0 1px color-mix(in srgb,var(--panel-accent) 17%,transparent),0 0 52px color-mix(in srgb,var(--panel-accent-soft) 13%,transparent);
+}
+
+/* Текстовые элементы лежат прямо в мире — без стеклянных карточек и рамок. */
+.intro-copy,
+.game-detail {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+.game-detail p {
+  color: rgba(245,247,251,.82) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  text-shadow: 0 3px 18px rgba(0,0,0,.92);
+}
+
+.play-button,
+.play-button:hover {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
 .experience::after {
   content: '';
   position: absolute;

@@ -183,7 +183,7 @@
 @keyframes screenFlash { 0% { opacity:0 } 18% { opacity:.8 } 100% { opacity:0 } }
 
 @media (max-width: 1180px) {
-  .mascot-stage { width: clamp(210px,20vw,294px); left: -46px; bottom: 0; opacity: .9; }
+  .mascot-stage { width: clamp(210px,20vw,294px); left: -46px; bottom: 0; opacity: 1; }
 }
 
 @media (max-width: 780px) {
@@ -193,7 +193,7 @@
     right: auto;
     bottom: 2px;
     width: clamp(152px,42vw,202px);
-    opacity: .9;
+    opacity: 1;
   }
   .mascot-anvil { right: -17%; width: 62%; opacity: .9; }
 
@@ -203,7 +203,7 @@
 }
 
 @media (max-width: 420px) and (max-height: 720px) {
-  .mascot-stage { width: 126px; left: -20px; right: auto; bottom: 1px; opacity: .84; }
+  .mascot-stage { width: 126px; left: -20px; right: auto; bottom: 1px; opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
