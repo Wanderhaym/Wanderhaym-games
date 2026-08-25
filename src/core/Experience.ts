@@ -32,7 +32,6 @@ export class Experience {
   private readonly description = required<HTMLElement>('#gameDescription');
   private readonly tag = required<HTMLElement>('#gameTag');
   private readonly indexLabel = required<HTMLElement>('#gameIndex');
-  private readonly play = required<HTMLAnchorElement>('#playButton');
   private readonly progress = required<HTMLElement>('#progress');
   private readonly accessibleGames = required<HTMLElement>('#accessibleGames');
   private readonly soundButton = required<HTMLButtonElement>('#soundButton');
@@ -44,10 +43,15 @@ export class Experience {
   private touchStart: { x: number; y: number; time: number } | null = null;
   private musicEnabled = false;
   private audioUnlocked = false;
+  private audioStarting = false;
+  private musicManuallyDisabled = false;
 
   constructor() {
     this.music.src = musicUrl;
     this.music.volume = 0.16;
+    this.music.preload = 'auto';
+    this.music.setAttribute('playsinline', '');
+    this.music.load();
     this.hammerAudio.volume = 0.065;
     this.hammerAudio.preload = 'auto';
 
@@ -106,12 +110,23 @@ export class Experience {
     required<HTMLButtonElement>('#previousButton').addEventListener('click', () => this.navigate(-1));
     required<HTMLButtonElement>('#nextButton').addEventListener('click', () => this.navigate(1));
     required<HTMLButtonElement>('#homeButton').addEventListener('click', () => this.select(0));
-    this.soundButton.addEventListener('click', () => this.toggleMusic());
+    this.soundButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.toggleMusic();
+    });
 
     addEventListener('resize', () => this.world.resize(), { passive: true });
     addEventListener('pointermove', (event) => this.world.setPointer(event.clientX, event.clientY), { passive: true });
-    addEventListener('pointerdown', () => this.unlockAudio(), { passive: true, once: true });
+    addEventListener('pointerdown', (event) => {
+      if (event.target instanceof Node && this.soundButton.contains(event.target)) return;
+      this.unlockAudio();
+    }, { passive: true });
+    addEventListener('touchstart', (event) => {
+      if (event.target instanceof Node && this.soundButton.contains(event.target)) return;
+      this.unlockAudio();
+    }, { passive: true });
     addEventListener('keydown', (event) => {
+      this.unlockAudio();
       if (event.key === 'ArrowRight' || event.key === 'ArrowDown') this.navigate(1);
       if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') this.navigate(-1);
       if (event.key === ' ' && event.target === document.body) {
@@ -141,17 +156,23 @@ export class Experience {
         this.navigate(dx < 0 ? 1 : -1);
         return;
       }
-      if (performance.now() - start.time < 700 && Math.hypot(dx, dy) < 18) {
+      if (performance.now() - start.time < 850 && Math.hypot(dx, dy) < 32) {
         const selectedCard = this.world.pick(event.clientX, event.clientY);
         if (!selectedCard) this.world.hit();
       }
+    });
+    this.canvas.addEventListener('pointercancel', () => {
+      this.touchStart = null;
     });
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         this.music.pause();
       } else if (this.musicEnabled) {
-        void this.music.play().catch(() => undefined);
+        void this.music.play().catch(() => {
+          this.musicEnabled = false;
+          this.updateSoundButton();
+        });
       }
     });
   }
@@ -162,7 +183,7 @@ export class Experience {
     this.activeIndex = normalized;
     this.world.setActive(this.activeIndex);
     this.renderGame();
-    this.world.hit();
+    this.world.hit(false);
   }
 
   private navigate(direction: number): void {
@@ -181,8 +202,6 @@ export class Experience {
     this.description.textContent = game.description;
     this.tag.textContent = game.tag;
     this.indexLabel.textContent = `${String(this.activeIndex + 1).padStart(2, '0')} / ${String(games.length).padStart(2, '0')}`;
-    this.play.href = `https://vk.com/app${game.appId}`;
-    this.play.setAttribute('aria-label', `Играть в «${game.title}» во ВКонтакте`);
     [...this.progress.children].forEach((marker, index) => marker.classList.toggle('is-active', index === this.activeIndex));
     this.ui.classList.remove('is-shifting');
     requestAnimationFrame(() => this.ui.classList.add('is-shifting'));
@@ -195,28 +214,37 @@ export class Experience {
   }
 
   private unlockAudio(): void {
-    if (this.audioUnlocked) return;
-    this.audioUnlocked = true;
-    this.musicEnabled = true;
-    this.updateSoundButton();
-    void this.music.play().catch(() => {
-      this.musicEnabled = false;
-      this.updateSoundButton();
-    });
+    if (this.musicManuallyDisabled || this.musicEnabled || this.audioStarting) return;
+    this.startMusic();
   }
 
   private toggleMusic(): void {
-    this.audioUnlocked = true;
-    this.musicEnabled = !this.musicEnabled;
-    if (this.musicEnabled) {
-      void this.music.play().catch(() => {
-        this.musicEnabled = false;
-        this.updateSoundButton();
-      });
-    } else {
+    if (this.musicEnabled || !this.music.paused) {
+      this.musicManuallyDisabled = true;
+      this.musicEnabled = false;
       this.music.pause();
+      this.updateSoundButton();
+      return;
     }
-    this.updateSoundButton();
+    this.musicManuallyDisabled = false;
+    this.startMusic();
+  }
+
+  private startMusic(): void {
+    if (this.audioStarting) return;
+    this.audioStarting = true;
+    this.music.muted = false;
+    this.music.volume = 0.16;
+    void this.music.play().then(() => {
+      this.audioUnlocked = true;
+      this.musicEnabled = true;
+      this.updateSoundButton();
+    }).catch(() => {
+      this.musicEnabled = false;
+      this.updateSoundButton();
+    }).finally(() => {
+      this.audioStarting = false;
+    });
   }
 
   private updateSoundButton(): void {

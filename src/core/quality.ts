@@ -7,6 +7,7 @@ export interface QualitySettings {
   shadows: boolean;
   sparks: number;
   stars: number;
+  fluidSize: number;
   antialias: boolean;
 }
 
@@ -30,6 +31,7 @@ export function detectQuality(): QualitySettings {
       shadows: false,
       sparks: 42,
       stars: 280,
+      fluidSize: 72,
       antialias: false,
     };
   }
@@ -40,8 +42,9 @@ export function detectQuality(): QualitySettings {
       pixelRatio: Math.min(devicePixelRatio, 1.45),
       bloom: true,
       shadows: false,
-      sparks: 72,
+      sparks: 144,
       stars: 520,
+      fluidSize: 128,
       antialias: true,
     };
   }
@@ -51,8 +54,9 @@ export function detectQuality(): QualitySettings {
     pixelRatio: Math.min(devicePixelRatio, 1.8),
     bloom: true,
     shadows: true,
-    sparks: 110,
+    sparks: 240,
     stars: 850,
+    fluidSize: 192,
     antialias: true,
   };
 }

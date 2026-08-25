@@ -6,7 +6,8 @@ import cat03Url from '../../assets/mascot/web/cat-03-swing.webp?url';
 import cat04Url from '../../assets/mascot/web/cat-04-contact.webp?url';
 import cat05Url from '../../assets/mascot/web/cat-05-impact.webp?url';
 import recoverUrl from '../../assets/mascot/web/cat-recover.webp?url';
-import blinkUrl from '../../assets/mascot/web/cat-blink.webp?url';
+import blinkHalfUrl from '../../assets/mascot/web/cat-blink-half.webp?url';
+import blinkClosedUrl from '../../assets/mascot/web/cat-blink.webp?url';
 import idlePlatformUrl from '../../assets/mascot/web/platform-idle.webp?url';
 import hitPlatformUrl from '../../assets/mascot/web/platform-hit.webp?url';
 
@@ -37,11 +38,12 @@ export class ApprovedMascot {
   private idlePlatform: THREE.Mesh | null = null;
   private hitPlatform: THREE.Mesh | null = null;
   private hitTime = -1;
+  private queuedHits = 0;
   private impactSent = false;
   private onImpact: ImpactCallback | null = null;
 
   constructor() {
-    this.group.name = 'Approved Wanderhaym cat / six-frame WebGL animation';
+    this.group.name = 'Approved Wanderhaym cat / held-frame WebGL animation';
     this.character.position.set(-0.36, 0.22, 0.16);
     this.platform.position.set(0.56, -1.68, 0);
     this.group.add(this.platform, this.character);
@@ -49,7 +51,10 @@ export class ApprovedMascot {
 
   async initialize(onProgress: (progress: number) => void): Promise<void> {
     const loader = new THREE.TextureLoader();
-    const urls = [cat00Url, cat01Url, cat02Url, cat03Url, cat04Url, cat05Url, recoverUrl, blinkUrl, idlePlatformUrl, hitPlatformUrl];
+    const urls = [
+      cat00Url, cat01Url, cat02Url, cat03Url, cat04Url, cat05Url,
+      recoverUrl, blinkHalfUrl, blinkClosedUrl, idlePlatformUrl, hitPlatformUrl,
+    ];
     const textures: THREE.Texture[] = [];
     for (let index = 0; index < urls.length; index += 1) {
       const texture = await loader.loadAsync(urls[index]);
@@ -61,128 +66,163 @@ export class ApprovedMascot {
     }
 
     const frameSizes: Array<[number, number]> = [
-      [2.82, 4.06], [4.05, 4.05], [4.05, 4.05],
-      [4.05, 4.05], [4.05, 4.05], [2.82, 4.07],
-      [2.82, 4.08], [2.82, 4.07],
+      [2.82, 4.08], [4.05, 4.05], [4.05, 4.05],
+      [4.05, 4.05], [4.05, 4.05], [2.82, 4.08],
+      [2.82, 4.08], [2.82, 4.08], [2.82, 4.08],
     ];
-    textures.slice(0, 8).forEach((texture, index) => {
+    textures.slice(0, 9).forEach((texture, index) => {
       const [width, height] = frameSizes[index];
       const layer = createLayer(texture, width, height, 0.1 + index * 0.004);
       this.frames.push(layer);
       this.character.add(layer);
     });
-    this.showCalm(0);
+    this.showOnly(0);
 
-    this.idlePlatform = createLayer(textures[8], 3.48, 1.77, 0.04);
-    this.hitPlatform = createLayer(textures[9], 3.48, 1.77, 0.07);
+    this.idlePlatform = createLayer(textures[9], 3.48, 1.77, 0.04);
+    this.hitPlatform = createLayer(textures[10], 3.48, 1.77, 0.07);
     this.setLayerOpacity(this.idlePlatform, 1);
     this.setLayerOpacity(this.hitPlatform, 0);
     this.platform.add(this.idlePlatform, this.hitPlatform);
   }
 
   hit(callback: ImpactCallback): void {
-    if (this.hitTime >= 0 || this.frames.length !== 8) return;
+    if (this.frames.length !== 9) return;
+    if (this.hitTime >= 0) {
+      this.queuedHits = Math.min(5, this.queuedHits + 1);
+      return;
+    }
     this.hitTime = 0;
     this.impactSent = false;
     this.onImpact = callback;
   }
 
   update(delta: number, elapsed: number): void {
-    if (this.frames.length !== 8 || !this.idlePlatform || !this.hitPlatform) return;
+    if (this.frames.length !== 9 || !this.idlePlatform || !this.hitPlatform) return;
     if (this.hitTime < 0) {
-      const cycle = elapsed % 2;
-      let blink = 0;
-      if (cycle >= 1.72 && cycle < 1.8) blink = THREE.MathUtils.smoothstep((cycle - 1.72) / 0.08, 0, 1);
-      else if (cycle >= 1.8 && cycle < 1.9) blink = 1;
-      else if (cycle >= 1.9) blink = 1 - THREE.MathUtils.smoothstep((cycle - 1.9) / 0.1, 0, 1);
-      document.documentElement.dataset.mascotState = blink > 0.45 ? 'blink' : 'idle';
-      this.showCalm(Math.max(0, blink));
+      this.updateBlink(elapsed % 2);
       this.character.position.y = 0.22 + Math.sin(elapsed * 1.6) * 0.018;
       this.character.rotation.z = Math.sin(elapsed * 0.75) * 0.008;
       return;
     }
 
-    this.hitTime += delta;
+    this.hitTime += delta * (1 + Math.min(4, this.queuedHits) * 0.16);
     const time = this.hitTime;
-    let framePosition = 0;
-    if (time < 0.12) {
-      document.documentElement.dataset.mascotState = 'prepare';
-      framePosition = THREE.MathUtils.mapLinear(time, 0, 0.12, 0, 1);
-      this.character.position.y = THREE.MathUtils.lerp(0.22, 0.28, time / 0.12);
+    if (time < 0.16) {
+      this.setState('prepare');
+      this.showStepped(0, 1, time / 0.16);
+      this.character.position.y = THREE.MathUtils.lerp(0.22, 0.28, time / 0.16);
     } else if (time < 0.25) {
-      document.documentElement.dataset.mascotState = 'windup';
-      framePosition = THREE.MathUtils.mapLinear(time, 0.12, 0.25, 1, 2);
-    } else if (time < 0.36) {
-      document.documentElement.dataset.mascotState = 'swing';
-      framePosition = THREE.MathUtils.mapLinear(time, 0.25, 0.36, 2, 3);
-    } else if (time < 0.45) {
-      document.documentElement.dataset.mascotState = 'contact';
-      framePosition = THREE.MathUtils.mapLinear(time, 0.36, 0.45, 3, 4);
-      this.character.position.y = THREE.MathUtils.lerp(0.28, 0.16, (time - 0.36) / 0.09);
-    } else if (time < 0.62) {
-      document.documentElement.dataset.mascotState = 'impact';
-      framePosition = Math.min(5, THREE.MathUtils.mapLinear(time, 0.45, 0.51, 4, 5));
-      if (!this.impactSent) {
-        this.impactSent = true;
-        this.setLayerOpacity(this.idlePlatform, 0);
-        this.setLayerOpacity(this.hitPlatform, 1);
-        this.onImpact?.(this.group.localToWorld(this.impactPosition.clone()));
-      }
-    } else if (time < 0.76) {
-      document.documentElement.dataset.mascotState = 'recover-low';
-      const recovery = THREE.MathUtils.smoothstep((time - 0.62) / 0.14, 0, 1);
-      this.showTransition(5, 6, recovery);
-      this.character.position.y = THREE.MathUtils.lerp(0.16, 0.19, recovery);
-      return;
-    } else if (time < 1.04) {
-      document.documentElement.dataset.mascotState = 'recover-stand';
-      const recovery = THREE.MathUtils.smoothstep((time - 0.76) / 0.28, 0, 1);
-      this.showTransition(6, 0, recovery);
-      this.character.position.y = THREE.MathUtils.lerp(0.19, 0.22, recovery);
+      this.setState('prepare-hold');
+      this.showOnly(1);
+    } else if (time < 0.42) {
+      this.setState('windup');
+      this.showStepped(1, 2, (time - 0.25) / 0.17);
+    } else if (time < 0.5) {
+      this.setState('windup-hold');
+      this.showOnly(2);
+    } else if (time < 0.64) {
+      this.setState('swing');
+      this.showStepped(2, 3, (time - 0.5) / 0.14);
+    } else if (time < 0.7) {
+      this.setState('swing-hold');
+      this.showOnly(3);
+    } else if (time < 0.8) {
+      this.setState('contact');
+      const progress = this.ease((time - 0.7) / 0.1);
+      this.showStepped(3, 4, progress);
+      this.character.position.y = THREE.MathUtils.lerp(0.28, 0.17, progress);
+    } else if (time < 0.86) {
+      this.setState('contact-hold');
+      this.showOnly(4);
+    } else if (time < 0.94) {
+      this.setState('impact');
+      this.showStepped(4, 5, (time - 0.86) / 0.08);
+      if (time >= 0.9) this.triggerImpact();
+    } else if (time < 1.12) {
+      this.setState('impact-hold');
+      this.showOnly(5);
+      this.triggerImpact();
+    } else if (time < 1.32) {
+      this.setState('recover-low');
+      const progress = this.ease((time - 1.12) / 0.2);
+      this.showStepped(5, 6, progress);
+      this.character.position.y = THREE.MathUtils.lerp(0.17, 0.2, progress);
+    } else if (time < 1.42) {
+      this.setState('recover-hold');
+      this.showOnly(6);
+    } else if (time < 1.75) {
+      this.setState('recover-stand');
+      const progress = this.ease((time - 1.42) / 0.33);
+      this.showStepped(6, 0, progress);
+      this.character.position.y = THREE.MathUtils.lerp(0.2, 0.22, progress);
       this.setLayerOpacity(this.idlePlatform, 1);
       this.setLayerOpacity(this.hitPlatform, 0);
-      return;
     } else {
-      this.hitTime = -1;
-      document.documentElement.dataset.mascotState = 'idle';
       this.character.position.y = 0.22;
       this.character.rotation.z = 0;
-      this.character.scale.setScalar(1);
-      this.showCalm(0);
+      this.showOnly(0);
       this.setLayerOpacity(this.idlePlatform, 1);
       this.setLayerOpacity(this.hitPlatform, 0);
+      if (this.queuedHits > 0) {
+        this.queuedHits -= 1;
+        this.hitTime = 0;
+        this.impactSent = false;
+        this.setState('queued-hit');
+        return;
+      }
+      this.hitTime = -1;
+      this.setState('idle');
       this.onImpact = null;
       return;
     }
 
-    this.showAttackFrame(framePosition);
-    this.character.rotation.z = -Math.sin(Math.min(1, time / 0.62) * Math.PI) * 0.018;
+    this.character.rotation.z = time < 1.12 ? -Math.sin(Math.min(1, time / 0.94) * Math.PI) * 0.018 : 0;
   }
 
-  private showAttackFrame(position: number): void {
-    const lower = Math.max(0, Math.min(5, Math.floor(position)));
-    const upper = Math.max(0, Math.min(5, Math.ceil(position)));
-    const blend = THREE.MathUtils.smoothstep(position - lower, 0, 1);
-    this.frames.forEach((frame, index) => {
-      let opacity = 0;
-      if (index === lower) opacity = lower === upper ? 1 : 1 - blend;
-      if (index === upper) opacity = lower === upper ? 1 : blend;
-      this.setLayerOpacity(frame, opacity);
-    });
+  private updateBlink(cycle: number): void {
+    if (cycle < 1.56) {
+      this.setState('idle');
+      this.showOnly(0);
+    } else if (cycle < 1.68) {
+      this.setState('blink-half-close');
+      this.showOnly(7);
+    } else if (cycle < 1.8) {
+      this.setState('blink-close');
+      this.showOnly(8);
+    } else if (cycle < 1.88) {
+      this.setState('blink-closed-hold');
+      this.showOnly(8);
+    } else if (cycle < 1.96) {
+      this.setState('blink-half-open');
+      this.showOnly(7);
+    } else {
+      this.setState('blink-open');
+      this.showOnly(0);
+    }
   }
 
-  private showTransition(from: number, to: number, progress: number): void {
-    this.frames.forEach((frame, index) => {
-      const opacity = index === from ? 1 - progress : index === to ? progress : 0;
-      this.setLayerOpacity(frame, opacity);
-    });
+  private triggerImpact(): void {
+    if (this.impactSent || !this.idlePlatform || !this.hitPlatform) return;
+    this.impactSent = true;
+    this.setLayerOpacity(this.idlePlatform, 0);
+    this.setLayerOpacity(this.hitPlatform, 1);
+    this.onImpact?.(this.group.localToWorld(this.impactPosition.clone()));
   }
 
-  private showCalm(blink: number): void {
-    this.frames.forEach((frame, index) => {
-      const opacity = index === 0 ? 1 - blink : index === 7 ? blink : 0;
-      this.setLayerOpacity(frame, opacity);
-    });
+  private showOnly(index: number): void {
+    this.frames.forEach((frame, frameIndex) => this.setLayerOpacity(frame, frameIndex === index ? 1 : 0));
+  }
+
+  private showStepped(from: number, to: number, progress: number): void {
+    this.showOnly(progress < 0.48 ? from : to);
+  }
+
+  private ease(value: number): number {
+    return THREE.MathUtils.smoothstep(value, 0, 1);
+  }
+
+  private setState(state: string): void {
+    document.documentElement.dataset.mascotState = state;
   }
 
   private setLayerOpacity(layer: THREE.Mesh, opacity: number): void {
