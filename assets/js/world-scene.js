@@ -12,7 +12,9 @@
   var renderScale = 1;
   var frameInterval = 0;
   var reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  var lowPower = window.innerWidth < 780 || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+  var quality = document.documentElement.getAttribute('data-quality') || 'high';
+  var lowPower = quality !== 'high' || window.innerWidth < 780 || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+  var veryLowPower = quality === 'low';
   var adapted = false;
   var frameSamples = 0;
   var frameSampleStarted = 0;
@@ -81,7 +83,7 @@
     'float fbm(vec2 p){',
     '  float value = 0.0;',
     '  float amplitude = 0.5;',
-    '  for(int i = 0; i < 5; i++){',
+    '  for(int i = 0; i < ' + (lowPower ? '3' : '5') + '; i++){',
     '    value += amplitude * noise21(p);',
     '    p = mat2(1.62, 1.17, -1.17, 1.62) * p;',
     '    amplitude *= 0.5;',
@@ -344,8 +346,8 @@
   function init() {
     canvas = document.getElementById('worldCanvas');
     if (!canvas) return;
-    renderScale = lowPower ? 0.68 : 0.86;
-    frameInterval = lowPower ? 1000 / 30 : 1000 / 40;
+    renderScale = veryLowPower ? 0.48 : (lowPower ? 0.58 : 0.86);
+    frameInterval = veryLowPower ? 1000 / 24 : (lowPower ? 1000 / 30 : 1000 / 40);
 
     try {
       if (!initGl()) {

@@ -103,6 +103,35 @@
   .experience.is-scene-shifting .intro-copy,
   .experience.is-scene-shifting .game-detail { animation: none; }
   .experience-loader::before { background-size: 42px 42px; }
+
+  /* Мобильный compositor: оставляем характер сцены, но не заставляем GPU
+     пересобирать весь экран из-за фильтров и размытия десяти карточек. */
+  .site-hud,
+  .panel-chip,
+  .play-button,
+  .deck-controls,
+  .deck-arrow { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+  .game-panel {
+    filter: none !important;
+    backface-visibility: hidden;
+    contain: layout paint style;
+    transition: transform .58s cubic-bezier(.2,.75,.16,1),opacity .32s ease,border-color .25s ease !important;
+  }
+
+  .game-panel.is-distant { visibility: hidden; }
+  .game-panel.is-active { box-shadow: 0 22px 62px rgba(0,0,0,.58),0 0 0 1px color-mix(in srgb,var(--panel-accent) 16%,transparent); }
+  .panel-bg { filter: none !important; transition: transform .55s cubic-bezier(.2,.75,.16,1) !important; }
+  .panel-noise { display: none; }
+  .game-panel .panel-fx { filter: none !important; transform: none !important; transition: opacity .28s ease !important; }
+  .game-panel:not(.is-active) .panel-fx { display: none; }
+
+  .mascot-stage { filter: none; }
+  .mascot-aura { filter: none; opacity: .28; }
+  .mascot-anvil-sprite,
+  .mascot-stage.is-impacting .mascot-anvil-sprite--hit { filter: none; }
+  .mascot-impact::before { mix-blend-mode: normal; }
+  .screen-sparks { transform: translateZ(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {

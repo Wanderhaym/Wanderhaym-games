@@ -92,6 +92,7 @@
       panel.style.setProperty('--tiltX', '0deg');
       panel.style.setProperty('--tiltY', '0deg');
       panel.classList.toggle('is-active', active);
+      panel.classList.toggle('is-distant', abs > 2);
       panel.setAttribute('aria-hidden', active ? 'false' : 'true');
       panel.tabIndex = active ? 0 : -1;
     });

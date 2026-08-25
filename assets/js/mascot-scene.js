@@ -18,6 +18,7 @@
   var particleTime = 0;
   var canvasDpr = 1;
   var lastManualHitAt = 0;
+  var compactRendering = window.innerWidth < 781;
 
   if (!stage || !impact || !sparkLayer || !sparkContext) return;
 
@@ -75,7 +76,8 @@
   }
 
   function resizeSparkCanvas() {
-    canvasDpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    compactRendering = window.innerWidth < 781;
+    canvasDpr = Math.min(window.devicePixelRatio || 1, compactRendering ? 1 : 1.5);
     var width = Math.max(1, Math.round(window.innerWidth * canvasDpr));
     var height = Math.max(1, Math.round(window.innerHeight * canvasDpr));
     if (sparkLayer.width !== width || sparkLayer.height !== height) {
@@ -139,14 +141,18 @@
       sparkContext.translate(x, y);
       sparkContext.rotate(particle.rotation);
       sparkContext.globalAlpha = alpha;
-      sparkContext.shadowBlur = Math.min(24, size * 2.8);
+      sparkContext.shadowBlur = compactRendering ? Math.min(8, size * 1.1) : Math.min(24, size * 2.8);
       sparkContext.shadowColor = '#ff6b08';
-      var gradient = sparkContext.createLinearGradient(0, size * 2.2, 0, -size * 2.2);
-      gradient.addColorStop(0, '#ff4b00');
-      gradient.addColorStop(.42, '#ff9b10');
-      gradient.addColorStop(.76, '#ffe46b');
-      gradient.addColorStop(1, '#fffce4');
-      sparkContext.fillStyle = gradient;
+      if (compactRendering) {
+        sparkContext.fillStyle = particle.ember ? '#ff8a10' : '#ffd25a';
+      } else {
+        var gradient = sparkContext.createLinearGradient(0, size * 2.2, 0, -size * 2.2);
+        gradient.addColorStop(0, '#ff4b00');
+        gradient.addColorStop(.42, '#ff9b10');
+        gradient.addColorStop(.76, '#ffe46b');
+        gradient.addColorStop(1, '#fffce4');
+        sparkContext.fillStyle = gradient;
+      }
       if (particle.ember) {
         sparkContext.beginPath();
         sparkContext.moveTo(0, -size * 1.2);
@@ -175,8 +181,8 @@
     var originX = rect.left + rect.width * .5;
     var originY = rect.top + rect.height * .5;
     var compact = window.innerWidth < 781;
-    var sideCount = reducedMotion ? 5 : (compact ? 18 : 28);
-    var viewerCount = reducedMotion ? 3 : (compact ? 7 : 12);
+    var sideCount = reducedMotion ? 5 : (compact ? 12 : 28);
+    var viewerCount = reducedMotion ? 3 : (compact ? 5 : 12);
 
     sparkLayer.style.setProperty('--impact-x', originX + 'px');
     sparkLayer.style.setProperty('--impact-y', originY + 'px');

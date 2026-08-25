@@ -84,6 +84,16 @@ html[data-world-energy="high"] .ambient-grid {
     background: radial-gradient(circle at 50% 42%, transparent 8%, rgba(2,3,6,.18) 50%, rgba(2,3,6,.72) 100%);
   }
 
+  .world-flare { display: none; }
+
+  html[data-world-ready="true"] .ambient {
+    mix-blend-mode: normal;
+  }
+
+  html[data-world-ready="true"] .ambient-orb {
+    display: none;
+  }
+
   html[data-world-ready="true"] .ambient-grid {
     opacity: .34;
     background-size: 44px 44px;
