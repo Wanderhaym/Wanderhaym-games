@@ -3,11 +3,7 @@ data.js
 build.mjs
 build.zip
 temp_verify.js
-vite.config.js
 vk-hosting-config.json
-package.json
-package-lock.json
-public/
 
 # Папки сборки и системные файлы
 dist/

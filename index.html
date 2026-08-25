@@ -1,143 +1,76 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Wanderhaym Games — интерактивная коллекция игр</title>
-    <meta name="description" content="Интерактивная коллекция VK мини-игр Wanderhaym. Листай игры в пространстве и запускай их прямо во ВКонтакте.">
-    <meta name="keywords" content="Wanderhaym, игры VK, мини-игры, инди-игры, головоломки, нейросети, gamedev">
-    <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://wanderhaym.github.io/Wanderhaym-games/">
-    <meta name="theme-color" content="#050608">
-
-    <meta property="og:title" content="Wanderhaym Games — интерактивная коллекция">
-    <meta property="og:description" content="Путешествуй между играми Wanderhaym и запускай их прямо во ВКонтакте.">
-    <meta property="og:image" content="https://wanderhaym.github.io/Wanderhaym-games/og-image.jpg">
-    <meta property="og:url" content="https://wanderhaym.github.io/Wanderhaym-games/">
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="Wanderhaym Games">
-
-    <link rel="icon" type="image/png" href="favicon.png">
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
-    <link rel="stylesheet" href="assets/css/styles.css">
-    <link rel="stylesheet" href="assets/css/panel-fx.css">
-    <link rel="stylesheet" href="assets/css/experience-upgrade.css?v=20260825d">
-    <link rel="stylesheet" href="assets/css/world-scene.css?v=20260825d">
-    <link rel="stylesheet" href="assets/css/mascot-scene.css?v=20260825d">
-    <link rel="stylesheet" href="assets/css/cinematic-experience.css?v=20260825d">
-
-    <script src="https://yandex.ru/ads/system/context.js" async></script>
-    <script data-page-id="19759584" src="https://yandex.ru/ads/system/ap-loader.js" async></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Wanderhaym Games — настоящий интерактивный 3D-мир</title>
+  <meta name="description" content="Путешествуй по настоящей Three.js 3D-сцене Wanderhaym и запускай игры прямо во ВКонтакте.">
+  <meta name="theme-color" content="#040509">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://wanderhaym.github.io/Wanderhaym-games/">
+  <meta property="og:title" content="Wanderhaym Games — интерактивный 3D-мир">
+  <meta property="og:description" content="Настоящая WebGL-сцена с перспективной камерой, объёмными карточками и живым кузнецом Wanderhaym.">
+  <meta property="og:image" content="./og-image.jpg">
+  <link rel="icon" href="./favicon.png" type="image/png">
 </head>
 <body>
-    <div class="experience-loader" id="experienceLoader" role="status" aria-live="polite">
-        <div class="loader-core">
-            <span class="loader-mark" aria-hidden="true">W</span>
-            <p class="loader-kicker">Wanderhaym Interactive</p>
-            <p class="loader-title">Собираем игровой мир</p>
-            <div class="loader-track" aria-hidden="true"><i id="loaderProgress"></i></div>
-            <p class="loader-value" id="loaderValue">00%</p>
-        </div>
-    </div>
+  <div class="loader" id="loader" role="status" aria-live="polite">
+    <div class="loader__mark">W</div>
+    <p class="loader__eyebrow">Wanderhaym / WebGL Experience</p>
+    <h1>Строим настоящий<br>трёхмерный мир</h1>
+    <div class="loader__track"><i id="loaderBar"></i></div>
+    <span id="loaderValue">00%</span>
+  </div>
 
-    <div class="world-layer" aria-hidden="true">
-        <canvas class="world-canvas" id="worldCanvas"></canvas>
-        <div class="world-flare"></div>
-        <div class="world-vignette"></div>
-    </div>
+  <canvas id="world" aria-hidden="true"></canvas>
+  <div class="grain" aria-hidden="true"></div>
 
-    <div class="ambient" aria-hidden="true">
-        <div class="ambient-orb ambient-orb-a"></div>
-        <div class="ambient-orb ambient-orb-b"></div>
-        <div class="ambient-grid"></div>
-        <div class="ambient-noise"></div>
-    </div>
+  <header class="hud">
+    <button class="brand" id="homeButton" type="button" aria-label="Перейти к первой игре">
+      <span class="brand__mark">W</span>
+      <span><strong>Wanderhaym</strong><small>real 3D games</small></span>
+    </button>
+    <nav class="hud__actions" aria-label="Навигация автора">
+      <button class="sound" id="soundButton" type="button" aria-label="Включить музыку" aria-pressed="false">
+        <span class="sound__bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span>Звук</span>
+      </button>
+      <a href="https://vk.ru/wanderhayms" target="_blank" rel="noopener">Сообщество</a>
+      <a class="support" href="https://www.donationalerts.com/r/wanderhaym" target="_blank" rel="noopener">Поддержать</a>
+    </nav>
+  </header>
 
-    <aside class="mascot-stage" id="wanderhaymMascot" aria-label="Живой кот Wanderhaym">
-        <div class="mascot-aura" aria-hidden="true"></div>
-        <div class="mascot-rig">
-            <div class="mascot-visual">
-                <img class="mascot-pose mascot-pose--idle" src="assets/mascot/wanderhaym-cat-idle.png" alt="" draggable="false" decoding="async" loading="eager" fetchpriority="high">
-                <img class="mascot-pose mascot-pose--impact" src="assets/mascot/wanderhaym-cat-impact.png" alt="" draggable="false" decoding="async" loading="eager">
-            </div>
-        </div>
-        <div class="mascot-anvil" aria-hidden="true">
-            <img class="mascot-anvil-sprite mascot-anvil-sprite--idle" src="assets/mascot/impact-platform-idle.png" alt="" draggable="false" decoding="async" loading="eager">
-            <img class="mascot-anvil-sprite mascot-anvil-sprite--hit" src="assets/mascot/impact-platform-hit.png" alt="" draggable="false" decoding="async" loading="eager">
-        </div>
-        <div class="mascot-impact" aria-hidden="true"></div>
-    </aside>
+  <main class="ui" id="ui">
+    <section class="intro" aria-labelledby="siteTitle">
+      <p class="eyebrow"><span></span> Интерактивная 3D-коллекция</p>
+      <h1 id="siteTitle">Выбери<br>игру</h1>
+      <p>Колесо · свайп · стрелки</p>
+    </section>
 
-    <div class="screen-impact-flash" id="screenImpactFlash" aria-hidden="true"></div>
-    <canvas class="screen-sparks" id="screenSparks" aria-hidden="true"></canvas>
+    <section class="game-info" aria-live="polite">
+      <div class="game-info__meta">
+        <span id="gameIndex">01 / 10</span>
+        <span id="gameTag">Игра</span>
+      </div>
+      <h2 id="gameTitle">Wanderhaym Games</h2>
+      <p id="gameDescription">Загрузка трёхмерного мира…</p>
+      <a class="play" id="playButton" href="#" target="_blank" rel="noopener">
+        <span>Играть</span><i aria-hidden="true">↗</i>
+      </a>
+    </section>
 
-    <header class="site-hud">
-        <a class="brand" href="#" aria-label="Wanderhaym Games — на первую игру">
-            <span class="brand-mark">W</span>
-            <span class="brand-copy"><strong>Wanderhaym</strong><small>games</small></span>
-        </a>
-        <nav class="hud-actions" aria-label="Ссылки автора">
-            <button class="audio-toggle" id="audioToggle" type="button" aria-label="Включить или выключить музыку" aria-pressed="false">
-                <span class="audio-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                <span class="audio-label">Звук</span>
-            </button>
-            <a href="https://vk.ru/wanderhayms" target="_blank" rel="noopener">Сообщество</a>
-            <a class="support-link" href="https://www.donationalerts.com/r/wanderhaym" target="_blank" rel="noopener">Поддержать</a>
-        </nav>
-    </header>
+    <nav class="controls" aria-label="Переключение игр">
+      <button id="previousButton" type="button" aria-label="Предыдущая игра">←</button>
+      <div class="progress" id="progress" aria-hidden="true"></div>
+      <button id="nextButton" type="button" aria-label="Следующая игра">→</button>
+    </nav>
 
-    <main class="experience" id="top">
-        <section class="intro-copy" aria-labelledby="experienceTitle">
-            <p class="eyebrow">Интерактивная коллекция</p>
-            <h1 id="experienceTitle">Выбери игру</h1>
-            <p class="intro-subtitle">Крути колесо мыши или листай пальцем</p>
-        </section>
+    <p class="world-label" aria-hidden="true"><span>THREE.JS WORLD</span><span>CAMERA / MESH / LIGHT</span></p>
+  </main>
 
-        <section class="scene-shell" id="gamesScene" aria-label="Карусель игр">
-            <div class="scene-glow" aria-hidden="true"></div>
-            <div class="scene" id="gamesDeck">
-                <div class="games-loading">Загрузка игр…</div>
-            </div>
-        </section>
+  <nav class="sr-only" id="accessibleGames" aria-label="Все игры Wanderhaym"></nav>
+  <audio id="music" loop preload="auto" playsinline></audio>
 
-        <section class="game-detail" id="gameDetail" aria-live="polite">
-            <div class="detail-meta">
-                <span class="detail-index" id="detailIndex">01 / 01</span>
-                <span class="detail-tag" id="detailTag">Игра</span>
-            </div>
-            <h2 id="detailTitle">Wanderhaym Games</h2>
-            <p id="detailDescription">Выберите игру в пространстве.</p>
-            <a class="play-button" id="playGame" href="#" target="_blank" rel="noopener">
-                <span>Играть</span>
-                <span class="play-arrow" aria-hidden="true">↗</span>
-            </a>
-        </section>
-
-        <div class="deck-controls" aria-label="Навигация по играм">
-            <button class="deck-arrow" id="prevGame" type="button" aria-label="Предыдущая игра">←</button>
-            <div class="deck-progress" id="deckProgress" aria-hidden="true"></div>
-            <button class="deck-arrow" id="nextGame" type="button" aria-label="Следующая игра">→</button>
-        </div>
-
-        <p class="interaction-hint" aria-hidden="true">
-            <span class="mouse-icon">↕</span>
-            <span>Колесо · свайп · стрелки</span>
-        </p>
-    </main>
-
-    <footer class="mini-footer">
-        <span>© <span id="year"></span> Wanderhaym Games</span>
-        <span>VK Mini Apps</span>
-    </footer>
-
-    <audio id="bgMusic" src="assets/music.mp3" loop preload="auto" playsinline webkit-playsinline></audio>
-
-    <script src="assets/js/games-data.js"></script>
-    <script src="assets/js/cinematic-experience.js?v=20260825d"></script>
-    <script src="assets/js/world-scene.js?v=20260825d"></script>
-    <script src="assets/js/mascot-scene.js?v=20260825d"></script>
-    <script src="assets/js/main.js?v=20260825d"></script>
-    <script src="assets/js/experience-upgrade.js?v=20260825d"></script>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
