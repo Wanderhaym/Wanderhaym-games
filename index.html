@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover,interactive-widget=resizes-content">
   <title>Wanderhaym Games — настоящий интерактивный 3D-мир</title>
   <meta name="description" content="Путешествуй по настоящей Three.js 3D-сцене Wanderhaym и запускай игры прямо во ВКонтакте.">
   <meta name="theme-color" content="#040509">
@@ -26,30 +26,35 @@
   <div class="grain" aria-hidden="true"></div>
 
   <header class="hud">
-    <button class="brand" id="homeButton" type="button" aria-label="Перейти к первой игре">
+    <a class="brand" id="homeButton" href="https://vk.ru/wanderhayms" target="_blank" rel="noopener" aria-label="Открыть сообщество Wanderhaym ВКонтакте">
       <span class="brand__mark">W</span>
       <span><strong>Wanderhaym</strong><small>real 3D games</small></span>
-    </button>
+    </a>
+    <div class="portal-hud" id="portalHud" data-state="cold" aria-live="polite">
+      <div class="portal-hud__top">
+        <span id="portalState">РАЗОГРЕЙ ЯДРО</span>
+        <strong id="portalHeatValue">0%</strong>
+      </div>
+      <div class="portal-hud__track" aria-hidden="true"><i id="portalHeatBar"></i></div>
+      <small id="portalDestination">СЛУЧАЙНЫЙ МИР</small>
+    </div>
     <nav class="hud__actions" aria-label="Навигация автора">
       <button class="sound" id="soundButton" type="button" aria-label="Включить музыку" aria-pressed="false">
         <span class="sound__bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
         <span>Звук</span>
       </button>
-      <a href="https://vk.ru/wanderhayms" target="_blank" rel="noopener">Сообщество</a>
       <a class="support" href="https://www.donationalerts.com/r/wanderhaym" target="_blank" rel="noopener">Поддержать</a>
     </nav>
   </header>
 
-  <main class="ui" id="ui">
-    <section class="intro" aria-labelledby="siteTitle">
-      <p class="eyebrow"><span></span> Интерактивная 3D-коллекция</p>
-      <h1 id="siteTitle">Выбери<br>игру</h1>
-      <p>Колесо · свайп · стрелки</p>
-    </section>
+  <div class="teleport-counter" id="teleportCounter" data-state="connecting" aria-live="polite">
+    <span>ТЕЛЕПОРТАЦИЙ</span>
+    <strong id="teleportCounterValue">…</strong>
+  </div>
 
+  <main class="ui" id="ui">
     <section class="game-info" aria-live="polite">
       <div class="game-info__meta">
-        <span id="gameIndex">01 / 10</span>
         <span id="gameTag">Игра</span>
       </div>
       <h2 id="gameTitle">Wanderhaym Games</h2>

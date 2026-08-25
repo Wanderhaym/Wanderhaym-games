@@ -3,6 +3,7 @@ import hammerUrl from '../../assets/mascot/hammer-hit.wav?url';
 import { games } from '../data/games';
 import { detectQuality } from './quality';
 import { GameWorld } from '../world/GameWorld';
+import { TeleportCounter, type TeleportCounterState } from '../services/TeleportCounter';
 
 declare global {
   interface Window {
@@ -31,16 +32,26 @@ export class Experience {
   private readonly title = required<HTMLElement>('#gameTitle');
   private readonly description = required<HTMLElement>('#gameDescription');
   private readonly tag = required<HTMLElement>('#gameTag');
-  private readonly indexLabel = required<HTMLElement>('#gameIndex');
   private readonly progress = required<HTMLElement>('#progress');
   private readonly accessibleGames = required<HTMLElement>('#accessibleGames');
   private readonly soundButton = required<HTMLButtonElement>('#soundButton');
+  private readonly portalHud = required<HTMLElement>('#portalHud');
+  private readonly portalState = required<HTMLElement>('#portalState');
+  private readonly portalHeatValue = required<HTMLElement>('#portalHeatValue');
+  private readonly portalHeatBar = required<HTMLElement>('#portalHeatBar');
+  private readonly portalDestination = required<HTMLElement>('#portalDestination');
+  private readonly teleportCounterElement = required<HTMLElement>('#teleportCounter');
+  private readonly teleportCounterValue = required<HTMLElement>('#teleportCounterValue');
   private readonly music = required<HTMLAudioElement>('#music');
   private readonly hammerAudio = new Audio(hammerUrl);
+  private readonly teleportCounter = new TeleportCounter();
   private readonly world: GameWorld;
+  private teleportTotal: number | null = null;
   private activeIndex = 0;
   private lastNavigation = 0;
   private touchStart: { x: number; y: number; time: number } | null = null;
+  private lastInteractiveTap: { index: number; time: number } | null = null;
+  private artifactPreviewIndex: number | null = null;
   private musicEnabled = false;
   private audioUnlocked = false;
   private audioStarting = false;
@@ -58,9 +69,17 @@ export class Experience {
     this.world = new GameWorld(this.canvas, games, detectQuality(), {
       onProgress: (value) => this.setLoading(value),
       onSelect: (index) => this.select(index),
+      onJourney: (index) => {
+        const previous = this.activeIndex;
+        this.select(index, 'space');
+        if (this.activeIndex !== previous) void this.teleportCounter.recordTeleport();
+      },
       onActivate: (index) => this.openGame(index),
       onImpact: () => this.playImpact(),
+      onPortalState: (state) => this.renderPortalState(state),
     });
+
+    this.teleportCounter.subscribe((state) => this.renderTeleportCounter(state));
 
     this.createNavigation();
     this.bindEvents();
@@ -109,7 +128,6 @@ export class Experience {
   private bindEvents(): void {
     required<HTMLButtonElement>('#previousButton').addEventListener('click', () => this.navigate(-1));
     required<HTMLButtonElement>('#nextButton').addEventListener('click', () => this.navigate(1));
-    required<HTMLButtonElement>('#homeButton').addEventListener('click', () => this.select(0));
     this.soundButton.addEventListener('click', (event) => {
       event.stopPropagation();
       this.toggleMusic();
@@ -119,6 +137,7 @@ export class Experience {
     addEventListener('pointermove', (event) => this.world.setPointer(event.clientX, event.clientY), { passive: true });
     addEventListener('pointerdown', (event) => {
       if (event.target instanceof Node && this.soundButton.contains(event.target)) return;
+      this.world.setPointer(event.clientX, event.clientY);
       this.unlockAudio();
     }, { passive: true });
     addEventListener('touchstart', (event) => {
@@ -153,16 +172,43 @@ export class Experience {
       const dx = event.clientX - start.x;
       const dy = event.clientY - start.y;
       if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) {
+        this.lastInteractiveTap = null;
+        this.artifactPreviewIndex = null;
+        this.world.clearPointerInteraction();
         this.navigate(dx < 0 ? 1 : -1);
         return;
       }
       if (performance.now() - start.time < 850 && Math.hypot(dx, dy) < 32) {
+        if (event.pointerType === 'touch' && this.world.touchArtifactPreview(event.clientX, event.clientY)) {
+          const travel = this.artifactPreviewIndex === this.activeIndex;
+          this.artifactPreviewIndex = travel ? null : this.activeIndex;
+          this.lastInteractiveTap = null;
+          if (travel) this.world.pick(event.clientX, event.clientY);
+          return;
+        }
+        if (event.pointerType === 'touch' && this.world.touchInteractiveCover(event.clientX, event.clientY)) {
+          this.artifactPreviewIndex = null;
+          const now = performance.now();
+          const activate = this.lastInteractiveTap?.index === this.activeIndex
+            && now - this.lastInteractiveTap.time < 950;
+          this.lastInteractiveTap = activate ? null : { index: this.activeIndex, time: now };
+          if (activate) this.world.pick(event.clientX, event.clientY);
+          return;
+        }
+        this.lastInteractiveTap = null;
+        this.artifactPreviewIndex = null;
+        if (event.pointerType === 'touch') this.world.clearPointerInteraction();
         const selectedCard = this.world.pick(event.clientX, event.clientY);
         if (!selectedCard) this.world.hit();
       }
     });
     this.canvas.addEventListener('pointercancel', () => {
       this.touchStart = null;
+      this.artifactPreviewIndex = null;
+      this.world.clearPointerInteraction();
+    });
+    this.canvas.addEventListener('pointerleave', (event) => {
+      if (event.pointerType !== 'touch') this.world.clearPointerInteraction();
     });
 
     document.addEventListener('visibilitychange', () => {
@@ -177,13 +223,14 @@ export class Experience {
     });
   }
 
-  private select(index: number): void {
+  private select(index: number, transition: 'slide' | 'space' = 'slide'): void {
     const normalized = (index + games.length) % games.length;
     if (normalized === this.activeIndex) return;
+    this.artifactPreviewIndex = null;
     this.activeIndex = normalized;
-    this.world.setActive(this.activeIndex);
+    this.world.setActive(this.activeIndex, false, transition);
     this.renderGame();
-    this.world.hit(false);
+    if (transition === 'slide') this.world.hit(false);
   }
 
   private navigate(direction: number): void {
@@ -201,10 +248,46 @@ export class Experience {
     this.title.textContent = game.title;
     this.description.textContent = game.description;
     this.tag.textContent = game.tag;
-    this.indexLabel.textContent = `${String(this.activeIndex + 1).padStart(2, '0')} / ${String(games.length).padStart(2, '0')}`;
     [...this.progress.children].forEach((marker, index) => marker.classList.toggle('is-active', index === this.activeIndex));
     this.ui.classList.remove('is-shifting');
     requestAnimationFrame(() => this.ui.classList.add('is-shifting'));
+  }
+
+  private renderPortalState(state: {
+    heat: number;
+    ready: boolean;
+    destination: string;
+    hits: number;
+    requiredHits: number;
+  }): void {
+    const percent = Math.round(state.heat * 100);
+    this.portalHud.dataset.state = state.ready ? 'ready' : percent > 2 ? 'heating' : 'cold';
+    this.portalState.textContent = state.ready
+      ? 'ПОРТАЛ ОТКРЫТ'
+      : percent > 2
+        ? 'НАГРЕВ ЯДРА'
+        : 'РАЗОГРЕЙ ЯДРО';
+    this.portalHeatValue.textContent = `${state.hits}/${state.requiredHits}`;
+    this.portalHeatBar.style.width = `${percent}%`;
+    this.portalDestination.textContent = state.hits > 0
+      ? `→ ${state.destination}`
+      : 'СЛУЧАЙНЫЙ МИР';
+  }
+
+  private renderTeleportCounter(state: TeleportCounterState): void {
+    this.teleportCounterElement.dataset.state = state.status;
+    if (state.total === null) {
+      this.teleportCounterValue.textContent = state.status === 'connecting' ? '…' : '—';
+      return;
+    }
+    const increased = this.teleportTotal !== null && state.total > this.teleportTotal;
+    this.teleportTotal = state.total;
+    this.teleportCounterValue.textContent = state.total.toLocaleString('ru-RU');
+    if (increased) {
+      this.teleportCounterElement.classList.remove('is-pop');
+      requestAnimationFrame(() => this.teleportCounterElement.classList.add('is-pop'));
+      window.setTimeout(() => this.teleportCounterElement.classList.remove('is-pop'), 380);
+    }
   }
 
   private setLoading(value: number): void {

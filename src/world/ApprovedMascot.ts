@@ -13,6 +13,17 @@ import hitPlatformUrl from '../../assets/mascot/web/platform-hit.webp?url';
 
 type ImpactCallback = (worldPosition: THREE.Vector3) => void;
 
+// The source drawings use slightly different character scales. These restrained
+// corrections keep the head/body size coherent without flattening the pose.
+const FRAME_SCALE = [1, 0.97, 0.96, 0.95, 0.93, 0.96, 1.01, 1, 1];
+const FRAME_BASELINE = -1.5525;
+// Blink drawings were exported from slightly different internal placements.
+// Alpha-mass registration (not only bounding-box matching) removes the last
+// few pixels of horizontal drift between idle / half blink / closed blink.
+const FRAME_X_CORRECTION = [1, 1, 1, 1, 1, 1, 1, 0.99027, 1.00519];
+const FRAME_Y_CORRECTION = [1, 1, 1, 1, 1, 1, 1, 907 / 924, 1];
+const FRAME_X_OFFSET = [0, 0, 0, 0, 0, 0, 0, -0.0137, 0.004];
+
 function createLayer(texture: THREE.Texture, width: number, height: number, z: number): THREE.Mesh {
   const material = new THREE.MeshBasicMaterial({
     map: texture,
@@ -65,14 +76,16 @@ export class ApprovedMascot {
       onProgress((index + 1) / urls.length);
     }
 
-    const frameSizes: Array<[number, number]> = [
-      [2.82, 4.08], [4.05, 4.05], [4.05, 4.05],
-      [4.05, 4.05], [4.05, 4.05], [2.82, 4.08],
-      [2.82, 4.08], [2.82, 4.08], [2.82, 4.08],
-    ];
     textures.slice(0, 9).forEach((texture, index) => {
-      const [width, height] = frameSizes[index];
-      const layer = createLayer(texture, width, height, 0.1 + index * 0.004);
+      const layer = createLayer(texture, 4.05, 4.05, 0.1 + index * 0.004);
+      const scale = FRAME_SCALE[index];
+      const scaleX = scale * FRAME_X_CORRECTION[index];
+      const scaleY = scale * FRAME_Y_CORRECTION[index];
+      layer.scale.set(scaleX, scaleY, 1);
+      // Scaling happens around the plane centre; compensate so the paws remain
+      // locked to the same baseline throughout a hit and a blink.
+      layer.position.x = FRAME_X_OFFSET[index];
+      layer.position.y = FRAME_BASELINE * (1 - scaleY);
       this.frames.push(layer);
       this.character.add(layer);
     });
@@ -80,6 +93,11 @@ export class ApprovedMascot {
 
     this.idlePlatform = createLayer(textures[9], 3.48, 1.77, 0.04);
     this.hitPlatform = createLayer(textures[10], 3.48, 1.77, 0.07);
+    // The anvil is the foreground lip of the composition. It must cover the
+    // mascot's paws instead of looking like a platform underneath the cat.
+    this.platform.position.z = 0.42;
+    this.idlePlatform.renderOrder = 40;
+    this.hitPlatform.renderOrder = 41;
     this.setLayerOpacity(this.idlePlatform, 1);
     this.setLayerOpacity(this.hitPlatform, 0);
     this.platform.add(this.idlePlatform, this.hitPlatform);
@@ -180,19 +198,19 @@ export class ApprovedMascot {
   }
 
   private updateBlink(cycle: number): void {
-    if (cycle < 1.56) {
+    if (cycle < 1.52) {
       this.setState('idle');
       this.showOnly(0);
-    } else if (cycle < 1.68) {
+    } else if (cycle < 1.64) {
       this.setState('blink-half-close');
       this.showOnly(7);
-    } else if (cycle < 1.8) {
+    } else if (cycle < 1.74) {
       this.setState('blink-close');
       this.showOnly(8);
-    } else if (cycle < 1.88) {
+    } else if (cycle < 1.86) {
       this.setState('blink-closed-hold');
       this.showOnly(8);
-    } else if (cycle < 1.96) {
+    } else if (cycle < 1.94) {
       this.setState('blink-half-open');
       this.showOnly(7);
     } else {
