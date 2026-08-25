@@ -2,7 +2,7 @@ import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getDatabase, onValue, ref, runTransaction, type Unsubscribe } from 'firebase/database';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyB2y4Rj_-Yp6l-KgDDwZOco7GpMav3OmA8',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: 'sepnaya-reacsia.firebaseapp.com',
   projectId: 'sepnaya-reacsia',
   databaseURL: 'https://sepnaya-reacsia-default-rtdb.europe-west1.firebasedatabase.app',
@@ -19,16 +19,24 @@ export interface TeleportCounterState {
 }
 
 export class TeleportCounter {
-  private readonly counterRef;
+  private readonly counterRef: ReturnType<typeof ref> | null;
   private unsubscribe: Unsubscribe | null = null;
   private total: number | null = null;
 
   constructor() {
+    if (!firebaseConfig.apiKey) {
+      this.counterRef = null;
+      return;
+    }
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     this.counterRef = ref(getDatabase(app), COUNTER_PATH);
   }
 
   subscribe(listener: (state: TeleportCounterState) => void): () => void {
+    if (!this.counterRef) {
+      listener({ status: 'offline', total: null });
+      return () => undefined;
+    }
     listener({ status: 'connecting', total: this.total });
     this.unsubscribe?.();
     this.unsubscribe = onValue(
@@ -47,6 +55,7 @@ export class TeleportCounter {
   }
 
   async recordTeleport(): Promise<number | null> {
+    if (!this.counterRef) return null;
     try {
       const result = await runTransaction(this.counterRef, (current) => {
         const total = typeof current === 'number' && Number.isFinite(current) ? Math.max(0, Math.floor(current)) : 0;
