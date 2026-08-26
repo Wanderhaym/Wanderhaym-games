@@ -83,13 +83,13 @@ const ROUTE_SHADER_ID: Record<JourneyRoute, number> = {
 };
 
 const GAMEPLAY_SOURCES = [
+  dominoBordersGameplayUrl,
   compatibilityGameplayUrl,
   ideasGameplayUrl,
   riskGameplayUrl,
   smokingGameplayUrl,
   chainGameplayUrl,
   wanderVoiceGameplayUrl,
-  dominoBordersGameplayUrl,
   knowMeGameplayUrl,
   dominoChaosGameplayUrl,
   truthGameplayUrl,

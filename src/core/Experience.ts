@@ -1,3 +1,4 @@
+import bridge from '@vkontakte/vk-bridge';
 import musicUrl from '../../assets/music.mp3?url';
 import hammerUrl from '../../assets/mascot/hammer-hit.wav?url';
 import { allGames, games } from '../data/games';
@@ -89,6 +90,10 @@ export class Experience {
   private quietMode = false;
 
   constructor() {
+    // Outside VK this call simply rejects and the standalone/GitHub Pages
+    // version keeps working. Inside VK it completes the Mini App handshake.
+    void bridge.send('VKWebAppInit').catch(() => undefined);
+
     this.music.src = musicUrl;
     this.music.volume = 0.16;
     // The soundtrack is not needed to render the loader and browsers cannot
@@ -341,7 +346,17 @@ export class Experience {
 
   private openGame(index: number): void {
     const game = allGames[index];
-    window.open(`https://vk.com/app${game.appId}`, '_blank', 'noopener,noreferrer');
+    const url = `https://vk.com/app${game.appId}`;
+    if (bridge.isEmbedded()) {
+      void bridge.send('VKWebAppOpenApp', {
+        app_id: game.appId,
+        location: 'default',
+      }).catch(() => {
+        window.location.href = url;
+      });
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   private renderGame(): void {

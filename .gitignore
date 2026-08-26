@@ -1,9 +1,8 @@
-# Исходные файлы VK Mini App (не нужны для лендинга)
+# Старые исходники первой версии каталога (новый Mini App их не использует)
 data.js
 build.mjs
 build.zip
 temp_verify.js
-vk-hosting-config.json
 
 # Папки сборки и системные файлы
 dist/

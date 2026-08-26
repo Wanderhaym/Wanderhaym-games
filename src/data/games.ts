@@ -38,6 +38,16 @@ export interface GameData {
 
 export const games: GameData[] = [
   {
+    appId: 54557291,
+    title: 'Домино: Границы',
+    description: 'Логическая головоломка: собери 28 пар домино, расставляя границы между ними.',
+    cover: bordersCover,
+    tag: 'Головоломки',
+    accent: '#f2ce72',
+    journeyRoute: 'rift',
+    profile: { environment: 'boundaries', reveal: 'grid', audioRoot: 131, particleMode: 4, particleDensity: 0.14, lightEnergy: 0.36, secondary: '#ffe29a', background: '#100c03' },
+  },
+  {
     appId: 54709398,
     title: 'Тест на совместимость',
     description: 'Научный тест на совместимость на основе модели «Большой пятёрки». Пройди 20 вопросов и узнай, насколько вы подходите друг другу.',
@@ -96,16 +106,6 @@ export const games: GameData[] = [
     accent: '#8c85ff',
     journeyRoute: 'tunnel',
     profile: { environment: 'constellation', reveal: 'waveform', audioRoot: 185, particleMode: 2, particleDensity: 0.18, lightEnergy: 0.44, secondary: '#ff6fd8', background: '#070515' },
-  },
-  {
-    appId: 54557291,
-    title: 'Домино: Границы',
-    description: 'Логическая головоломка: собери 28 пар домино, расставляя границы между ними.',
-    cover: bordersCover,
-    tag: 'Головоломки',
-    accent: '#f2ce72',
-    journeyRoute: 'rift',
-    profile: { environment: 'boundaries', reveal: 'grid', audioRoot: 131, particleMode: 4, particleDensity: 0.14, lightEnergy: 0.36, secondary: '#ffe29a', background: '#100c03' },
   },
   {
     appId: 54712457,

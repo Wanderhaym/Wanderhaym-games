@@ -7,14 +7,18 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && vite build",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "predeploy": "npm run build",
+    "deploy": "vk-miniapps-deploy"
   },
   "dependencies": {
+    "@vkontakte/vk-bridge": "^3.0.2",
     "firebase": "^12.18.0",
     "three": "^0.185.1"
   },
   "devDependencies": {
     "@types/three": "^0.185.4",
+    "@vkontakte/vk-miniapps-deploy": "^1.0.2",
     "typescript": "^7.0.2",
     "vite": "^4.3.9"
   }
