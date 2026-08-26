@@ -62,6 +62,18 @@ interface WorldCallbacks {
   onSecretHint: (level: number) => void;
 }
 
+interface WorldPersistence {
+  portalProgressKey: string;
+  legacyPortalProgressKeys?: string[];
+  onPortalProgressChange?: (value: string) => void;
+}
+
+interface StoredPortalProgress {
+  teleports: number;
+  lastTeleportAt: number;
+  updatedAt: number;
+}
+
 const RING_RADIUS = 27;
 const MASCOT_PROGRESS_WEIGHT = 11;
 const PORTAL_PROGRESS_KEY = 'wanderhaym.portalTeleports.v1';
@@ -376,6 +388,7 @@ export class GameWorld {
   private portalRequiredHits = 4;
   private localPortalTeleports = 0;
   private lastLocalPortalTeleport = 0;
+  private portalProgressUpdatedAt = 0;
   private portalDestinationIndex = 1;
   private lastPortalHitTime = 0;
   private coreHeld = false;
@@ -396,11 +409,19 @@ export class GameWorld {
   private lastGpuDiagnostic = -1;
   private quietMode = false;
   private readonly audioBands: AudioBands = { bass: 0, mids: 0, highs: 0, overall: 0 };
+  private readonly persistence: WorldPersistence;
 
-  constructor(canvas: HTMLCanvasElement, games: GameData[], quality: QualitySettings, callbacks: WorldCallbacks) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    games: GameData[],
+    quality: QualitySettings,
+    callbacks: WorldCallbacks,
+    persistence: WorldPersistence = { portalProgressKey: PORTAL_PROGRESS_KEY },
+  ) {
     this.games = games;
     this.quality = quality;
     this.callbacks = callbacks;
+    this.persistence = persistence;
     this.readLocalPortalProgress();
     this.artifact.setSecretProgress((this.localPortalTeleports % SECRET_PORTAL_INTERVAL) / SECRET_PORTAL_INTERVAL);
     this.portalRequiredHits = this.secretPreview ? 1 : 4 + this.localPortalTeleports;
@@ -1520,36 +1541,98 @@ export class GameWorld {
 
   private readLocalPortalProgress(): void {
     try {
-      const raw = localStorage.getItem(PORTAL_PROGRESS_KEY);
-      if (!raw) return;
-      const legacyValue = Number(raw);
-      if (Number.isFinite(legacyValue)) {
-        this.localPortalTeleports = Math.max(0, Math.floor(legacyValue));
-        this.lastLocalPortalTeleport = Date.now();
-        return;
+      let raw = localStorage.getItem(this.persistence.portalProgressKey);
+      if (!raw) {
+        for (const legacyKey of this.persistence.legacyPortalProgressKeys ?? []) {
+          raw = localStorage.getItem(legacyKey);
+          if (raw) break;
+        }
       }
-      const stored = JSON.parse(raw) as { teleports?: unknown; lastTeleportAt?: unknown };
-      const teleports = Number(stored.teleports);
-      const lastTeleportAt = Number(stored.lastTeleportAt);
-      if (Number.isFinite(teleports)) this.localPortalTeleports = Math.max(0, Math.floor(teleports));
-      if (Number.isFinite(lastTeleportAt)) this.lastLocalPortalTeleport = Math.max(0, Math.floor(lastTeleportAt));
+      if (!raw) return;
+      const stored = this.parsePortalProgress(raw);
+      if (!stored) return;
+      this.applyPortalProgress(stored);
+      localStorage.setItem(this.persistence.portalProgressKey, this.serializePortalProgress());
       this.refreshLocalPortalProgress();
     } catch {
       this.localPortalTeleports = 0;
       this.lastLocalPortalTeleport = 0;
+      this.portalProgressUpdatedAt = 0;
     }
   }
 
   private writeLocalPortalTeleports(): void {
+    this.portalProgressUpdatedAt = Date.now();
+    this.persistPortalProgress();
+  }
+
+  mergePortalProgress(raw: string | null): string {
+    const cloud = raw ? this.parsePortalProgress(raw) : null;
+    if (cloud && cloud.updatedAt > this.portalProgressUpdatedAt) {
+      this.applyPortalProgress(cloud);
+      this.refreshLocalPortalProgress();
+      this.artifact.setSecretProgress((this.localPortalTeleports % SECRET_PORTAL_INTERVAL) / SECRET_PORTAL_INTERVAL);
+      this.portalRequiredHits = this.secretPreview ? 1 : 4 + this.localPortalTeleports;
+    }
+    const value = this.serializePortalProgress();
     try {
-      localStorage.setItem(PORTAL_PROGRESS_KEY, JSON.stringify({
-        teleports: this.localPortalTeleports,
-        lastTeleportAt: this.lastLocalPortalTeleport,
-      }));
+      localStorage.setItem(this.persistence.portalProgressKey, value);
+    } catch {
+      // Cloud storage still provides cross-device progress when local storage
+      // is unavailable.
+    }
+    return value;
+  }
+
+  private parsePortalProgress(raw: string): StoredPortalProgress | null {
+    const legacyValue = Number(raw);
+    if (Number.isFinite(legacyValue)) {
+      const now = Date.now();
+      return {
+        teleports: Math.max(0, Math.floor(legacyValue)),
+        lastTeleportAt: now,
+        updatedAt: now,
+      };
+    }
+    try {
+      const value = JSON.parse(raw) as Record<string, unknown>;
+      const teleports = Number(value.teleports);
+      const lastTeleportAt = Number(value.lastTeleportAt);
+      const updatedAt = Number(value.updatedAt ?? value.lastTeleportAt);
+      if (!Number.isFinite(teleports)) return null;
+      return {
+        teleports: Math.max(0, Math.floor(teleports)),
+        lastTeleportAt: Number.isFinite(lastTeleportAt) ? Math.max(0, Math.floor(lastTeleportAt)) : 0,
+        updatedAt: Number.isFinite(updatedAt) ? Math.max(0, Math.floor(updatedAt)) : 0,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private applyPortalProgress(stored: StoredPortalProgress): void {
+    this.localPortalTeleports = stored.teleports;
+    this.lastLocalPortalTeleport = stored.lastTeleportAt;
+    this.portalProgressUpdatedAt = stored.updatedAt;
+  }
+
+  private serializePortalProgress(): string {
+    return JSON.stringify({
+      teleports: this.localPortalTeleports,
+      lastTeleportAt: this.lastLocalPortalTeleport,
+      updatedAt: this.portalProgressUpdatedAt,
+    } satisfies StoredPortalProgress);
+  }
+
+  private persistPortalProgress(): void {
+    const value = this.serializePortalProgress();
+    try {
+      localStorage.setItem(this.persistence.portalProgressKey, value);
     } catch {
       // Private browsing can disable persistent storage; the in-memory level
       // still works for the current visit.
     }
+    this.persistence.onPortalProgressChange?.(value);
   }
 
   private refreshLocalPortalProgress(): void {
@@ -1561,11 +1644,10 @@ export class GameWorld {
     this.portalHeat = 0;
     this.portalReady = false;
     this.artifact.setSecretProgress(0);
-    try {
-      localStorage.removeItem(PORTAL_PROGRESS_KEY);
-    } catch {
-      // The in-memory reset is enough when persistent storage is unavailable.
-    }
+    // Keep a timestamped zero in both stores. Removing the local value would
+    // allow an older cloud record from another device to restore stale heat.
+    this.portalProgressUpdatedAt = Date.now();
+    this.persistPortalProgress();
   }
 
 

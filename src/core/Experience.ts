@@ -1,4 +1,3 @@
-import bridge from '@vkontakte/vk-bridge';
 import musicUrl from '../../assets/music.mp3?url';
 import hammerUrl from '../../assets/mascot/hammer-hit.wav?url';
 import { allGames, games } from '../data/games';
@@ -7,12 +6,10 @@ import { GameWorld } from '../world/GameWorld';
 import { TeleportCounter, type TeleportCounterState } from '../services/TeleportCounter';
 import { CinematicAudio } from '../audio/CinematicAudio';
 import { ForgeLoader } from '../ui/ForgeLoader';
+import { hostPlatform } from '../platform/HostPlatform';
 
 declare global {
   interface Window {
-    ReactNativeWebView?: {
-      postMessage: (message: string) => void;
-    };
     Wanderhaym3D: {
       getState: () => Record<string, unknown>;
       next: () => void;
@@ -29,12 +26,21 @@ function required<T extends Element>(selector: string): T {
   return element;
 }
 
-const PORTAL_TUTORIAL_KEY = 'wanderhaym.portalTutorial.v1';
-const CARD_TAP_TUTORIAL_KEY = 'wanderhaym.cardTapTutorial.v1';
+const PORTAL_TUTORIAL_KEY = hostPlatform.localStorageKey('wanderhaym.portalTutorial.v1');
+const CARD_TAP_TUTORIAL_KEY = hostPlatform.localStorageKey('wanderhaym.cardTapTutorial.v1');
+const PORTAL_CLOUD_KEY = hostPlatform.cloudStorageKey('portalProgress.v2');
+const LEGACY_PORTAL_TUTORIAL_KEY = 'wanderhaym.portalTutorial.v1';
+const LEGACY_CARD_TAP_TUTORIAL_KEY = 'wanderhaym.cardTapTutorial.v1';
+
+function hasCompletedFlag(key: string, legacyKey: string): boolean {
+  const current = localStorage.getItem(key);
+  if (current === 'complete') return true;
+  return hostPlatform.kind !== 'ok' && localStorage.getItem(legacyKey) === 'complete';
+}
 
 function hasCompletedPortalTutorial(): boolean {
   try {
-    return localStorage.getItem(PORTAL_TUTORIAL_KEY) === 'complete';
+    return hasCompletedFlag(PORTAL_TUTORIAL_KEY, LEGACY_PORTAL_TUTORIAL_KEY);
   } catch {
     return false;
   }
@@ -42,7 +48,7 @@ function hasCompletedPortalTutorial(): boolean {
 
 function hasCompletedCardTapTutorial(): boolean {
   try {
-    return localStorage.getItem(CARD_TAP_TUTORIAL_KEY) === 'complete';
+    return hasCompletedFlag(CARD_TAP_TUTORIAL_KEY, LEGACY_CARD_TAP_TUTORIAL_KEY);
   } catch {
     return false;
   }
@@ -60,6 +66,8 @@ export class Experience {
   private readonly accessibleGames = required<HTMLElement>('#accessibleGames');
   private readonly soundButton = required<HTMLButtonElement>('#soundButton');
   private readonly quietButton = required<HTMLButtonElement>('#quietButton');
+  private readonly homeButton = required<HTMLAnchorElement>('#homeButton');
+  private readonly supportButton = required<HTMLAnchorElement>('#supportButton');
   private readonly portalHud = required<HTMLElement>('#portalHud');
   private readonly portalState = required<HTMLElement>('#portalState');
   private readonly portalHeatValue = required<HTMLElement>('#portalHeatValue');
@@ -91,11 +99,11 @@ export class Experience {
   private cardTapTutorialComplete = hasCompletedCardTapTutorial();
   private cardTapCoachTimer: number | null = null;
   private quietMode = false;
+  private readonly platformReady: Promise<void>;
 
   constructor() {
-    // Outside VK this call simply rejects and the standalone/GitHub Pages
-    // version keeps working. Inside VK it completes the Mini App handshake.
-    void bridge.send('VKWebAppInit').catch(() => undefined);
+    this.platformReady = hostPlatform.initialize();
+    hostPlatform.configureLinks(this.homeButton, this.supportButton);
 
     this.music.src = musicUrl;
     this.music.volume = 0.16;
@@ -139,9 +147,17 @@ export class Experience {
         this.cinematicAudio.secretHint(level);
         this.showSecretHint(level);
       },
+    }, {
+      portalProgressKey: hostPlatform.localStorageKey('wanderhaym.portalTeleports.v2'),
+      legacyPortalProgressKeys: hostPlatform.kind === 'ok' ? [] : ['wanderhaym.portalTeleports.v1'],
+      onPortalProgressChange: (value) => {
+        void hostPlatform.writeCloudValue(PORTAL_CLOUD_KEY, value);
+      },
     });
     try {
-      this.quietMode = localStorage.getItem('wanderhaym.effects.v1') === 'quiet'
+      const quietPreference = localStorage.getItem(hostPlatform.localStorageKey('wanderhaym.effects.v1'))
+        ?? (hostPlatform.kind === 'ok' ? null : localStorage.getItem('wanderhaym.effects.v1'));
+      this.quietMode = quietPreference === 'quiet'
         || matchMedia('(prefers-reduced-motion: reduce)').matches;
     } catch {
       this.quietMode = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -166,6 +182,12 @@ export class Experience {
 
   async start(): Promise<void> {
     try {
+      await this.platformReady;
+      const cloudProgress = await hostPlatform.readCloudValue(PORTAL_CLOUD_KEY);
+      const mergedProgress = this.world.mergePortalProgress(cloudProgress);
+      if (hostPlatform.kind !== 'web' && mergedProgress !== cloudProgress) {
+        void hostPlatform.writeCloudValue(PORTAL_CLOUD_KEY, mergedProgress);
+      }
       // The loader frames decode alongside the WebGL world. They share the
       // same optimized URLs, so the browser downloads each texture only once
       // without delaying world initialization behind a separate preload gate.
@@ -211,7 +233,10 @@ export class Experience {
       this.quietMode = !this.quietMode;
       this.world.setQuietMode(this.quietMode);
       try {
-        localStorage.setItem('wanderhaym.effects.v1', this.quietMode ? 'quiet' : 'cinematic');
+        localStorage.setItem(
+          hostPlatform.localStorageKey('wanderhaym.effects.v1'),
+          this.quietMode ? 'quiet' : 'cinematic',
+        );
       } catch {
         // Session-only mode is still useful when storage is unavailable.
       }
@@ -349,21 +374,17 @@ export class Experience {
 
   private openGame(index: number): void {
     const game = allGames[index];
-    const url = `https://vk.com/app${game.appId}`;
-    const isReactNativeVk = typeof window.ReactNativeWebView?.postMessage === 'function';
-    const isNativeVk = bridge.isWebView() || isReactNativeVk;
-    if (bridge.isEmbedded() || isReactNativeVk) {
-      void bridge.send('VKWebAppOpenApp', {
-        app_id: game.appId,
-      }).catch(() => {
-        // A web redirect from the native VK client opens an isolated browser
-        // session and can incorrectly ask an already signed-in user to log in.
-        // Keep that fallback only for VK's desktop/mobile web iframe.
-        if (!isNativeVk) window.location.href = url;
-      });
-      return;
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void hostPlatform.openMiniApp(game.appId).then((opened) => {
+      if (opened) return;
+      this.interactionCoach.setAttribute('aria-hidden', 'false');
+      this.interactionCoach.dataset.state = 'secret';
+      this.interactionCoach.textContent = hostPlatform.kind === 'ok'
+        ? 'Этот мир пока недоступен в Одноклассниках'
+        : 'Не удалось открыть мир — попробуй ещё раз';
+      window.setTimeout(() => {
+        if (this.tutorialComplete) this.hidePortalTutorial();
+      }, 3200);
+    });
   }
 
   private renderGame(): void {
