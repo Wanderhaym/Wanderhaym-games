@@ -1444,6 +1444,10 @@ export class GameWorld {
       new THREE.Color(this.games[destinationIndex].accent),
     );
     document.documentElement.dataset.coreDestination = this.games[destinationIndex].title;
+    // A destination can change while background streaming is still in
+    // progress. Start its real cover immediately; ensureWorldAssets() calls
+    // this method again when the placeholder has been replaced.
+    if (this.placeholderTextures.has(texture)) void this.ensureWorldAssets(destinationIndex);
   }
 
   private resetPortalGame(): void {
@@ -1452,6 +1456,10 @@ export class GameWorld {
     this.portalHits = 0;
     this.lastPortalHitTime = 0;
     this.selectRandomPortalDestination();
+    // A new world is selected at every arrival. Refresh the lens here as
+    // well, rather than relying on the caller, so the portal can never keep
+    // the cover from the world we have just left.
+    this.updateArtifactDestinationPreview();
     this.artifact.setPortalState(0, false);
     this.publishPortalState(true);
   }
@@ -1477,21 +1485,17 @@ export class GameWorld {
       return;
     }
     const previous = this.portalDestinationIndex;
-    let destination = publicIndices[0];
-    for (let attempt = 0; attempt < 5 && destination === this.activeIndex; attempt += 1) {
-      destination = publicIndices[Math.floor(Math.random() * publicIndices.length)];
-    }
-    if (destination === this.activeIndex) {
-      destination = publicIndices.find((index) => index !== this.activeIndex) ?? publicIndices[0];
-    }
-    if (destination === previous && publicIndices.length > 2) {
-      const currentPoolIndex = publicIndices.indexOf(destination);
-      destination = publicIndices[(currentPoolIndex + 1) % publicIndices.length];
-      if (destination === this.activeIndex) {
-        destination = publicIndices[(currentPoolIndex + 2) % publicIndices.length];
-      }
-    }
-    this.portalDestinationIndex = destination;
+    // Filter before drawing. The old retry/fallback path was biased toward
+    // publicIndices[0], which became Domino: Borders when that game was moved
+    // to the first position.
+    const freshCandidates = publicIndices.filter((index) => (
+      index !== this.activeIndex && index !== previous
+    ));
+    const candidates = freshCandidates.length > 0
+      ? freshCandidates
+      : publicIndices.filter((index) => index !== this.activeIndex);
+    this.portalDestinationIndex = candidates[Math.floor(Math.random() * candidates.length)]
+      ?? this.activeIndex;
   }
 
   private publishPortalState(force = false): void {

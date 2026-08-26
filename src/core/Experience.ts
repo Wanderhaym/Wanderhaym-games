@@ -405,9 +405,10 @@ export class Experience {
         : 'РАЗОГРЕЙ ЯДРО';
     this.portalHeatValue.textContent = `${state.hits}/${state.requiredHits}`;
     this.portalHeatBar.style.width = `${percent}%`;
-    this.portalDestination.textContent = state.hits > 0
-      ? `→ ${state.destination}`
-      : 'СЛУЧАЙНЫЙ МИР';
+    // Keep the destination visible from the first frame. The cover inside
+    // the paw is deliberately subtle while the portal is cold, so hiding
+    // its title made the previous world's card look like the destination.
+    this.portalDestination.textContent = `→ ${state.destination}`;
     if (!this.tutorialComplete) {
       this.interactionCoach.dataset.state = state.ready ? 'ready' : state.hits > 0 ? 'heating' : 'cold';
       this.interactionCoach.textContent = state.ready
