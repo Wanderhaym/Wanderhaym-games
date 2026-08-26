@@ -25,6 +25,16 @@ function required<T extends Element>(selector: string): T {
   return element;
 }
 
+const PORTAL_TUTORIAL_KEY = 'wanderhaym.portalTutorial.v1';
+
+function hasCompletedPortalTutorial(): boolean {
+  try {
+    return localStorage.getItem(PORTAL_TUTORIAL_KEY) === 'complete';
+  } catch {
+    return false;
+  }
+}
+
 export class Experience {
   private readonly canvas = required<HTMLCanvasElement>('#world');
   private readonly loader = required<HTMLElement>('#loader');
@@ -63,7 +73,7 @@ export class Experience {
   private musicManuallyDisabled = false;
   private previousPortalReady = false;
   private portalReadySoundTimer: number | null = null;
-  private tutorialComplete = localStorage.getItem('wanderhaym.portalTutorial.v1') === 'complete';
+  private tutorialComplete = hasCompletedPortalTutorial();
   private quietMode = false;
 
   constructor() {
@@ -81,15 +91,13 @@ export class Experience {
       onProgress: (value) => this.forgeLoader.setProgress(this.loaderDemo ? value * 0.62 : value),
       onSelect: (index) => this.select(index),
       onJourney: (index) => {
+        // Hide the coach before selecting the destination. setActive() can
+        // publish a fresh cold portal state synchronously during the move.
+        this.completePortalTutorial();
         const previous = this.activeIndex;
         this.cinematicAudio.journey(index);
         this.select(index, 'space');
         if (this.activeIndex !== previous) void this.teleportCounter.recordTeleport();
-        if (!this.tutorialComplete) {
-          this.tutorialComplete = true;
-          localStorage.setItem('wanderhaym.portalTutorial.v1', 'complete');
-          this.interactionCoach.dataset.state = 'done';
-        }
       },
       onActivate: (index) => this.openGame(index),
       onImpact: (power) => this.playImpact(power),
@@ -120,6 +128,7 @@ export class Experience {
     }
     this.world.setQuietMode(this.quietMode);
     this.updateQuietButton();
+    if (this.tutorialComplete) this.hidePortalTutorial();
 
     this.teleportCounter.subscribe((state) => this.renderTeleportCounter(state));
 
@@ -365,14 +374,31 @@ export class Experience {
     }
   }
 
+  private completePortalTutorial(): void {
+    this.tutorialComplete = true;
+    this.hidePortalTutorial();
+    try {
+      localStorage.setItem(PORTAL_TUTORIAL_KEY, 'complete');
+    } catch {
+      // The current session still stays clean when storage is unavailable.
+    }
+  }
+
+  private hidePortalTutorial(): void {
+    this.interactionCoach.dataset.state = 'done';
+    this.interactionCoach.textContent = '';
+    this.interactionCoach.setAttribute('aria-hidden', 'true');
+  }
+
   private showSecretHint(level: number): void {
     const remaining = Math.max(1, 10 - level);
+    this.interactionCoach.setAttribute('aria-hidden', 'false');
     this.interactionCoach.dataset.state = 'secret';
     this.interactionCoach.textContent = remaining <= 2
       ? 'Скрытая кузница уже слышит твои удары…'
       : 'В глубине миров отозвался тайный металл';
     window.setTimeout(() => {
-      if (this.tutorialComplete) this.interactionCoach.dataset.state = 'done';
+      if (this.tutorialComplete) this.hidePortalTutorial();
     }, 3200);
   }
 
