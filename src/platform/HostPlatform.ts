@@ -83,7 +83,12 @@ export class HostPlatform {
     this.configureOkAnchor(support, supportUrl, 'Поддержка Wanderhaym в Одноклассниках', true);
   }
 
-  async openMiniApp(appId: number): Promise<boolean> {
+  canOpenMiniApp(okAppId?: number): boolean {
+    return this.kind !== 'ok' || Number.isFinite(okAppId);
+  }
+
+  async openMiniApp(appId: number, okAppId?: number): Promise<boolean> {
+    if (!this.canOpenMiniApp(okAppId)) return false;
     const vkUrl = `https://vk.ru/app${appId}`;
     if (this.kind === 'web' && !bridge.isEmbedded()) {
       window.open(vkUrl, '_blank', 'noopener,noreferrer');

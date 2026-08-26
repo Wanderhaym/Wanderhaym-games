@@ -153,6 +153,7 @@ export class Experience {
       onPortalProgressChange: (value) => {
         void hostPlatform.writeCloudValue(PORTAL_CLOUD_KEY, value);
       },
+      isPortalDestinationAvailable: (game) => hostPlatform.canOpenMiniApp(game.okAppId),
     });
     try {
       const quietPreference = localStorage.getItem(hostPlatform.localStorageKey('wanderhaym.effects.v1'))
@@ -374,7 +375,7 @@ export class Experience {
 
   private openGame(index: number): void {
     const game = allGames[index];
-    void hostPlatform.openMiniApp(game.appId).then((opened) => {
+    void hostPlatform.openMiniApp(game.appId, game.okAppId).then((opened) => {
       if (opened) return;
       this.interactionCoach.setAttribute('aria-hidden', 'false');
       this.interactionCoach.dataset.state = 'secret';

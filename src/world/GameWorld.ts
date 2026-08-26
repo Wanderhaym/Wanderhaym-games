@@ -66,6 +66,7 @@ interface WorldPersistence {
   portalProgressKey: string;
   legacyPortalProgressKeys?: string[];
   onPortalProgressChange?: (value: string) => void;
+  isPortalDestinationAvailable?: (game: GameData) => boolean;
 }
 
 interface StoredPortalProgress {
@@ -1487,11 +1488,13 @@ export class GameWorld {
 
   private selectRandomPortalDestination(forcePublic = false): void {
     const secretIndex = this.games.findIndex((game) => game.secret);
+    const secretAvailable = secretIndex >= 0
+      && (this.persistence.isPortalDestinationAvailable?.(this.games[secretIndex]) ?? true);
     const nextTeleportNumber = this.localPortalTeleports + 1;
     const previewSecretEntry = this.secretPreview
       && !this.secretPreviewConsumed
       && this.activeIndex !== secretIndex;
-    if (!forcePublic && secretIndex >= 0 && (previewSecretEntry || nextTeleportNumber % SECRET_PORTAL_INTERVAL === 0)) {
+    if (!forcePublic && secretAvailable && (previewSecretEntry || nextTeleportNumber % SECRET_PORTAL_INTERVAL === 0)) {
       this.portalDestinationIndex = secretIndex;
       document.documentElement.dataset.secretPortal = 'revealed';
       return;
@@ -1499,7 +1502,10 @@ export class GameWorld {
     document.documentElement.dataset.secretPortal = 'hidden';
     const publicIndices = this.games
       .map((game, index) => ({ game, index }))
-      .filter(({ game }) => !game.secret)
+      .filter(({ game }) => (
+        !game.secret
+        && (this.persistence.isPortalDestinationAvailable?.(game) ?? true)
+      ))
       .map(({ index }) => index);
     if (publicIndices.length <= 1) {
       this.portalDestinationIndex = this.activeIndex;

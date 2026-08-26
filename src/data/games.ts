@@ -26,6 +26,7 @@ export interface WorldProfile {
 
 export interface GameData {
   appId: number;
+  okAppId?: number;
   title: string;
   description: string;
   cover: string;
@@ -39,6 +40,7 @@ export interface GameData {
 export const games: GameData[] = [
   {
     appId: 54557291,
+    okAppId: 512004416640,
     title: 'Домино: Границы',
     description: 'Логическая головоломка: собери 28 пар домино, расставляя границы между ними.',
     cover: bordersCover,
@@ -49,6 +51,7 @@ export const games: GameData[] = [
   },
   {
     appId: 54709398,
+    okAppId: 512005270010,
     title: 'Тест на совместимость',
     description: 'Научный тест на совместимость на основе модели «Большой пятёрки». Пройди 20 вопросов и узнай, насколько вы подходите друг другу.',
     cover: compatibilityCover,
@@ -59,6 +62,7 @@ export const games: GameData[] = [
   },
   {
     appId: 54707764,
+    okAppId: 512005295786,
     title: 'Генератор идей',
     description: 'Скрещивай жанры и механики, создавай уникальные игровые идеи. Лайкай, сохраняй и делись.',
     cover: ideasCover,
@@ -69,6 +73,7 @@ export const games: GameData[] = [
   },
   {
     appId: 54707717,
+    okAppId: 512005214410,
     title: 'Давай рискнем',
     description: 'Пригласи на свидание без страха отказа. Выбирай блюда, дату и время — и отправляй приглашение.',
     cover: dateCover,
@@ -79,6 +84,7 @@ export const games: GameData[] = [
   },
   {
     appId: 54706814,
+    okAppId: 512005090918,
     title: 'Курить-НЕТ',
     description: 'Бросай курить вместе со мной. Отмечай прогресс, удерживай мотивацию и стань свободным.',
     cover: smokingCover,
@@ -89,6 +95,7 @@ export const games: GameData[] = [
   },
   {
     appId: 54710593,
+    okAppId: 512004791599,
     title: 'Цепная реакция',
     description: 'Отметься, стань частью истории и передай ссылку другу — наблюдай, как растёт ваша цепочка.',
     cover: chainCover,
@@ -99,6 +106,7 @@ export const games: GameData[] = [
   },
   {
     appId: 54714168,
+    okAppId: 512005315207,
     title: 'WanderVoice',
     description: 'Преврати любой текст в голосовое сообщение. Выбери голос и получи ссылку без сервера и платежей.',
     cover: voiceCover,
@@ -109,6 +117,7 @@ export const games: GameData[] = [
   },
   {
     appId: 54712457,
+    okAppId: 512005186234,
     title: 'Насколько ты меня знаешь',
     description: 'Создай викторину о себе, отправь друзьям и узнай, кто действительно знает тебя лучше всех.',
     cover: quizCover,
@@ -119,6 +128,7 @@ export const games: GameData[] = [
   },
   {
     appId: 54548362,
+    okAppId: 512004426991,
     title: 'Домино: Хаос',
     description: 'Собери 27 пар из осколков. Только один из десяти пройдёт испытание — бросишь вызов?',
     cover: chaosCover,
@@ -129,6 +139,7 @@ export const games: GameData[] = [
   },
   {
     appId: 54722527,
+    okAppId: 512005165098,
     title: 'Правда или Ложь',
     description: 'Создай викторину, где одно утверждение — ложь. Отправь другу и проверь его внимательность.',
     cover: truthCover,
@@ -141,6 +152,7 @@ export const games: GameData[] = [
 
 export const secretGame: GameData = {
   appId: 54647574,
+  okAppId: 512005287503,
   title: 'Домино Судоку',
   description: 'Секретная логическая кузница: размещай костяшки домино на поле 6 × 7, продумывай ходы и заполняй древнюю сетку.',
   cover: dominoSudokuCover,
