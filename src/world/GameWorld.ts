@@ -14,17 +14,23 @@ import ideasGameplayUrl from '../../assets/covers/web/ideas-gameplay.webp?url';
 import riskGameplayUrl from '../../assets/covers/web/risk-gameplay.webp?url';
 import smokingGameplayUrl from '../../assets/covers/web/smoking-gameplay.webp?url';
 import truthGameplayUrl from '../../assets/covers/web/truth-gameplay.webp?url';
+import dominoSudokuGameplayUrl from '../../assets/covers/web/domino-sudoku-secret-gameplay.webp?url';
 import type { GameData } from '../data/games';
 import type { QualitySettings } from '../core/quality';
+import { AdaptiveQualityController } from '../core/AdaptiveQualityController';
 import { ApprovedMascot } from './ApprovedMascot';
 import { CameraJourney, type CameraAnchor, type JourneyFrame } from './CameraJourney';
 import { CoreArtifact } from './CoreArtifact';
 import { JourneyTunnel } from './JourneyTunnel';
-import { InteractivePortalCover, type PortalRevealMode } from './InteractivePortalCover';
+import { InteractivePortalCover } from './InteractivePortalCover';
 import { MouseFluid } from './MouseFluid';
 import { SparkSystem } from './SparkSystem';
 import { TransitionSystem, type JourneyRoute } from './TransitionSystem';
 import { GameEnvironmentManager } from './environment/GameEnvironmentManager';
+import type { SceneDirection } from './SceneDirector';
+import { WorldDirector } from './WorldDirector';
+import { ArrivalSequence } from './ArrivalSequence';
+import type { AudioBands } from '../audio/CinematicAudio';
 
 interface Card3D {
   group: THREE.Group;
@@ -49,14 +55,18 @@ interface WorldCallbacks {
   onSelect: (index: number) => void;
   onJourney: (index: number) => void;
   onActivate: (index: number) => void;
-  onImpact: () => void;
+  onImpact: (power: number) => void;
   onPortalState: (state: { heat: number; ready: boolean; destination: string; hits: number; requiredHits: number }) => void;
+  onSceneDirection: (direction: SceneDirection) => void;
+  onArrival: (index: number) => void;
+  onSecretHint: (level: number) => void;
 }
 
 const RING_RADIUS = 27;
 const MASCOT_PROGRESS_WEIGHT = 11;
 const PORTAL_PROGRESS_KEY = 'wanderhaym.portalTeleports.v1';
 const PORTAL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const SECRET_PORTAL_INTERVAL = 10;
 
 const ROUTE_SHADER_ID: Record<JourneyRoute, number> = {
   tunnel: 0,
@@ -69,20 +79,48 @@ const ROUTE_SHADER_ID: Record<JourneyRoute, number> = {
   slingshot: 7,
   ascent: 8,
   recoil: 9,
+  'relic-forge': 10,
 };
 
-const INTERACTIVE_COVER_CONFIG: Record<number, { exposure: number; mode: PortalRevealMode }> = {
-  0: { exposure: 0.82, mode: 'bond' },
-  1: { exposure: 0.82, mode: 'shards' },
-  2: { exposure: 0.82, mode: 'decision' },
-  3: { exposure: 0.82, mode: 'smoke' },
-  4: { exposure: 0.82, mode: 'chain' },
-  5: { exposure: 0.82, mode: 'waveform' },
-  6: { exposure: 0.82, mode: 'grid' },
-  7: { exposure: 0.82, mode: 'radar' },
-  8: { exposure: 0.82, mode: 'organic' },
-  9: { exposure: 0.82, mode: 'truth' },
-};
+const GAMEPLAY_SOURCES = [
+  compatibilityGameplayUrl,
+  ideasGameplayUrl,
+  riskGameplayUrl,
+  smokingGameplayUrl,
+  chainGameplayUrl,
+  wanderVoiceGameplayUrl,
+  dominoBordersGameplayUrl,
+  knowMeGameplayUrl,
+  dominoChaosGameplayUrl,
+  truthGameplayUrl,
+  dominoSudokuGameplayUrl,
+];
+
+function createPlaceholderTexture(game: GameData, gameplay = false): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 96;
+  canvas.height = 96;
+  const context = canvas.getContext('2d');
+  if (context) {
+    const gradient = context.createRadialGradient(48, 42, 4, 48, 48, 70);
+    gradient.addColorStop(0, gameplay ? game.accent : '#151a24');
+    gradient.addColorStop(1, '#030509');
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 96, 96);
+    context.globalAlpha = gameplay ? 0.72 : 0.34;
+    context.fillStyle = game.accent;
+    context.beginPath();
+    context.ellipse(48, 57, 21, 17, 0, 0, Math.PI * 2);
+    [[30, 38], [42, 30], [54, 30], [66, 38]].forEach(([x, y]) => {
+      context.moveTo(x + 7, y);
+      context.arc(x, y, 7, 0, Math.PI * 2);
+    });
+    context.fill();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
 
 const floorShader = {
   uniforms: {
@@ -132,6 +170,8 @@ const finishShader = {
     uChromatic: { value: 1 },
     uRoute: { value: -1 },
     uJourneyProgress: { value: 1 },
+    uSceneEnergy: { value: 0.62 },
+    uAudioEnergy: { value: 0 },
     uAccent: { value: new THREE.Color(0x82ffd0) },
   },
   vertexShader: `
@@ -155,6 +195,8 @@ const finishShader = {
     uniform float uChromatic;
     uniform float uRoute;
     uniform float uJourneyProgress;
+    uniform float uSceneEnergy;
+    uniform float uAudioEnergy;
     uniform vec3 uAccent;
     varying vec2 vUv;
 
@@ -208,10 +250,15 @@ const finishShader = {
       } else if (uRoute > 7.5 && uRoute < 8.5) {
         routeCenter.y -= journeyEnvelope * 0.055;
         routeCenter.x *= 1.0 + journeyEnvelope * 0.035;
-      } else if (uRoute > 8.5) {
+      } else if (uRoute > 8.5 && uRoute < 9.5) {
         float recoilPulse = sin(uJourneyProgress * 18.8495559) * (1.0 - uJourneyProgress);
         routeCenter *= 1.0 + recoilPulse * journeyEnvelope * 0.075;
         routeCenter.x += recoilPulse * journeyEnvelope * 0.018;
+      } else if (uRoute > 9.5) {
+        vec2 gridCell = fract((routeCenter + 0.5) * vec2(7.0, 6.0)) - 0.5;
+        float gate = max(abs(gridCell.x), abs(gridCell.y));
+        routeCenter *= 1.0 - journeyEnvelope * (0.055 + smoothstep(0.38, 0.5, gate) * 0.055);
+        routeCenter.y += sin(uJourneyProgress * 12.5663706) * journeyEnvelope * 0.018;
       } else {
         routeCenter *= 1.0 - journeyEnvelope * 0.065;
       }
@@ -232,8 +279,12 @@ const finishShader = {
         routeSignature = pow(max(0.0, 1.0 - slingArc * 9.0), 9.0);
       } else if (uRoute > 7.5 && uRoute < 8.5) {
         routeSignature = pow(max(0.0, 1.0 - abs(center.x + turbulence * 0.025) * 13.0), 11.0);
-      } else if (uRoute > 8.5) {
+      } else if (uRoute > 8.5 && uRoute < 9.5) {
         routeSignature = pow(max(0.0, sin(radius * 52.0 - uJourneyProgress * 34.0)), 18.0);
+      } else if (uRoute > 9.5) {
+        vec2 relicGrid = abs(fract((center + 0.5) * vec2(7.0, 6.0)) - 0.5);
+        float gridLine = 1.0 - smoothstep(0.035, 0.09, min(relicGrid.x, relicGrid.y));
+        routeSignature = gridLine * (0.48 + 0.52 * sin(uJourneyProgress * 31.0 - (center.x + center.y) * 9.0));
       }
       vec2 fluidShift = fluid.xy * 0.032 * uFluidStrength;
       vec2 radialShift = normalize(warpedCenter + vec2(0.0001)) * (0.016 + radialPulse * 0.008) * uTransition * uWarp;
@@ -251,6 +302,14 @@ const finishShader = {
       color += mix(uAccent, vec3(1.0, 0.48, 0.12), 0.35) * starBands * smoothstep(0.08, 0.66, radius) * uTransition * 0.42;
       color += mix(uAccent, vec3(1.0), 0.34) * routeSignature * journeyEnvelope * 0.38;
       color += vec3(1.0, 0.22, 0.025) * uImpact * (0.035 + fluid.z * 0.12);
+      // Lightweight per-world grade inside the existing final pass: no extra
+      // fullscreen draw call and no heavy LUT texture on phones.
+      float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+      float saturation = 0.96 + uSceneEnergy * 0.055 + uAudioEnergy * 0.035;
+      color = mix(vec3(luminance), color, saturation);
+      float shadows = 1.0 - smoothstep(0.06, 0.48, luminance);
+      color += uAccent * shadows * (0.008 + uSceneEnergy * 0.012);
+      color *= 0.985 + smoothstep(0.58, 1.0, luminance) * 0.025;
       float grain = (hash(vUv * 1200.0 + uTime) - 0.5) * 0.017 * uStrength;
       color += grain;
       color *= 1.0 - edge * 0.19;
@@ -273,6 +332,8 @@ export class GameWorld {
   private readonly tunnel: JourneyTunnel;
   private readonly environments: GameEnvironmentManager;
   private readonly transitions = new TransitionSystem();
+  private readonly director = new WorldDirector();
+  private readonly arrival: ArrivalSequence;
   private readonly cards: Card3D[] = [];
   private readonly chambers: WorldChamber[] = [];
   private readonly raycaster = new THREE.Raycaster();
@@ -290,7 +351,11 @@ export class GameWorld {
   private readonly games: GameData[];
   private readonly coverTextures: THREE.Texture[] = [];
   private readonly gameplayTextures = new Map<number, THREE.Texture>();
+  private readonly worldAssetPromises = new Map<number, Promise<void>>();
+  private readonly placeholderTextures = new Set<THREE.Texture>();
   private readonly quality: QualitySettings;
+  private readonly adaptiveQuality: AdaptiveQualityController;
+  private bloomPass: UnrealBloomPass | null = null;
   private journey: CameraJourney | null = null;
   private readonly interactiveCovers = new Map<number, InteractivePortalCover>();
   private pointerSeen = false;
@@ -298,6 +363,7 @@ export class GameWorld {
   private pendingMascotIndex: number | null = null;
   private mascotRelocated = true;
   private destinationBurstDone = true;
+  private arrivalTriggered = true;
   private lastPointerTime = 0;
   private lastHitRequest = 0;
   private impactCharge = 0;
@@ -312,23 +378,34 @@ export class GameWorld {
   private lastLocalPortalTeleport = 0;
   private portalDestinationIndex = 1;
   private lastPortalHitTime = 0;
+  private coreHeld = false;
+  private coreHoldStarted = 0;
+  private coreHoldNextHit = 0;
+  private coreHoldTriggered = false;
   private publishedPortalPercent = -1;
   private publishedPortalReady = false;
   private publishedPortalDestination = -1;
   private interactionLocked = false;
   private portalTeleports = 0;
+  private readonly secretPreview = import.meta.env.DEV
+    && new URLSearchParams(location.search).get('preview') === 'secret-domino-sudoku';
+  private secretPreviewConsumed = false;
   private mobile = false;
   private compactLandscape = false;
   private destroyed = false;
   private lastGpuDiagnostic = -1;
+  private quietMode = false;
+  private readonly audioBands: AudioBands = { bass: 0, mids: 0, highs: 0, overall: 0 };
 
   constructor(canvas: HTMLCanvasElement, games: GameData[], quality: QualitySettings, callbacks: WorldCallbacks) {
     this.games = games;
     this.quality = quality;
     this.callbacks = callbacks;
     this.readLocalPortalProgress();
-    this.portalRequiredHits = 4 + this.localPortalTeleports;
+    this.artifact.setSecretProgress((this.localPortalTeleports % SECRET_PORTAL_INTERVAL) / SECRET_PORTAL_INTERVAL);
+    this.portalRequiredHits = this.secretPreview ? 1 : 4 + this.localPortalTeleports;
     this.environments = new GameEnvironmentManager(this.scene, quality);
+    this.arrival = new ArrivalSequence(quality.preset);
     this.tunnel = new JourneyTunnel(quality.preset === 'low' ? 150 : quality.preset === 'medium' ? 260 : 380);
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -355,17 +432,25 @@ export class GameWorld {
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(renderPass);
     if (quality.bloom) {
-      const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.22, 0.34, 0.86);
-      this.composer.addPass(bloom);
+      this.bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.22, 0.34, 0.86);
+      this.composer.addPass(this.bloomPass);
     }
     this.finishPass = new ShaderPass(finishShader);
     this.finishPass.uniforms.uStrength.value = quality.preset === 'low' ? 0.12 : 0.5;
-    this.finishPass.uniforms.uFluidStrength.value = quality.preset === 'low' ? 0.56 : quality.preset === 'medium' ? 0.82 : 1;
+    const baseFluidStrength = quality.preset === 'low' ? 0.56 : quality.preset === 'medium' ? 0.82 : 1;
+    this.finishPass.uniforms.uFluidStrength.value = baseFluidStrength;
     this.composer.addPass(this.finishPass);
 
     this.fluid = new MouseFluid(this.renderer, quality.fluidSize);
     this.finishPass.uniforms.tFluid.value = this.fluid.texture;
     this.sparks = new SparkSystem(quality.sparks);
+    this.adaptiveQuality = new AdaptiveQualityController(this.renderer, quality, (scale) => {
+      this.composer.setPixelRatio(this.quality.pixelRatio * scale);
+      if (this.bloomPass) this.bloomPass.strength = 0.22 * scale * (this.quietMode ? 0.48 : 1);
+      this.finishPass.uniforms.uFluidStrength.value = baseFluidStrength
+        * Math.max(0.82, scale)
+        * (this.quietMode ? 0.38 : 1);
+    });
     this.scene.add(this.sparks.points);
     this.installBaseScene();
     this.resize();
@@ -373,40 +458,30 @@ export class GameWorld {
 
   async initialize(): Promise<void> {
     const loader = new THREE.TextureLoader();
-    const gameplaySources = [
-      compatibilityGameplayUrl,
-      ideasGameplayUrl,
-      riskGameplayUrl,
-      smokingGameplayUrl,
-      chainGameplayUrl,
-      wanderVoiceGameplayUrl,
-      dominoBordersGameplayUrl,
-      knowMeGameplayUrl,
-      dominoChaosGameplayUrl,
-      truthGameplayUrl,
-    ];
-    const totalProgressWeight = this.games.length + gameplaySources.length + MASCOT_PROGRESS_WEIGHT;
-    const textures: THREE.Texture[] = [];
-    for (let index = 0; index < this.games.length; index += 1) {
-      const texture = await loader.loadAsync(this.games[index].cover);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
-      textures.push(texture);
-      this.coverTextures.push(texture);
-      this.callbacks.onProgress((index + 1) / totalProgressWeight);
-    }
-    for (let index = 0; index < gameplaySources.length; index += 1) {
-      const gameplayTexture = await loader.loadAsync(gameplaySources[index]);
-      gameplayTexture.colorSpace = THREE.SRGBColorSpace;
-      gameplayTexture.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
-      this.gameplayTextures.set(index, gameplayTexture);
-      this.callbacks.onProgress((this.games.length + index + 1) / totalProgressWeight);
-    }
+    const totalProgressWeight = 2 + MASCOT_PROGRESS_WEIGHT;
+    const [firstCover, firstGameplay] = await Promise.all([
+      loader.loadAsync(this.games[0].cover),
+      loader.loadAsync(GAMEPLAY_SOURCES[0]),
+    ]);
+    this.prepareTexture(firstCover);
+    this.prepareTexture(firstGameplay);
+    this.callbacks.onProgress(2 / totalProgressWeight);
     await this.mascot.initialize((progress) => this.callbacks.onProgress(
-      (this.games.length + gameplaySources.length + progress * MASCOT_PROGRESS_WEIGHT) / totalProgressWeight,
+      (2 + progress * MASCOT_PROGRESS_WEIGHT) / totalProgressWeight,
     ));
-    textures.forEach((texture, index) => this.createChamber(texture, index, this.gameplayTextures.get(index)));
+    this.games.forEach((game, index) => {
+      const cover = index === 0 ? firstCover : createPlaceholderTexture(game);
+      const gameplay = index === 0 ? firstGameplay : createPlaceholderTexture(game, true);
+      if (index !== 0) {
+        this.placeholderTextures.add(cover);
+        this.placeholderTextures.add(gameplay);
+      }
+      this.coverTextures[index] = cover;
+      this.gameplayTextures.set(index, gameplay);
+      this.createChamber(cover, index, gameplay);
+    });
     this.scene.add(...this.chambers.map((chamber) => chamber.group));
+    this.arrival.mount(this.chambers[0].group, this.mobile);
     this.updateCardDepthLayers();
     this.scene.updateMatrixWorld(true);
 
@@ -417,6 +492,7 @@ export class GameWorld {
     this.artifact.setPortalState(0, false);
     this.publishPortalState(true);
     this.environments.initialize(this.chambers[0].group, 0, this.games[0]);
+    this.director.setWorld(this.games[0].profile);
     this.updateResponsiveLayout();
     this.scene.updateMatrixWorld(true);
     this.journey = new CameraJourney(this.camera, this.getCameraAnchor(0));
@@ -424,6 +500,9 @@ export class GameWorld {
     this.finishPass.uniforms.uAccent.value.set(this.games[0].accent);
     this.publishDiagnostics();
     this.animate();
+    // The first world and mascot are already interactive. Remaining authored
+    // covers stream in around the visitor instead of blocking the entrance.
+    void this.loadRemainingWorlds();
   }
 
   private installBaseScene(): void {
@@ -658,13 +737,12 @@ export class GameWorld {
     texture.needsUpdate = true;
     let coverMaterial: THREE.Material;
     if (gameplayTexture) {
-      const revealConfig = INTERACTIVE_COVER_CONFIG[index] ?? { exposure: 0.82, mode: 'organic' as const };
       const interactiveCover = new InteractivePortalCover(
         texture,
         gameplayTexture,
         accent,
-        revealConfig.exposure,
-        revealConfig.mode,
+        game.secret ? 0.9 : 0.82,
+        game.profile.reveal,
       );
       this.interactiveCovers.set(index, interactiveCover);
       coverMaterial = interactiveCover.material;
@@ -728,6 +806,8 @@ export class GameWorld {
     );
 
     this.activeIndex = normalized;
+    this.director.setWorld(this.games[normalized].profile);
+    void this.ensureWorldAssets(normalized);
     this.resetPortalGame();
     this.updateCardDepthLayers();
     this.updateArtifactDestinationPreview();
@@ -750,6 +830,8 @@ export class GameWorld {
     // A slide already receives its single wave from the mascot hit. The
     // destination pulse belongs only to the separate journey through space.
     this.destinationBurstDone = immediate || transition === 'slide';
+    this.arrivalTriggered = immediate;
+    if (!immediate && transition === 'space') this.director.beginTravel();
     if (immediate) this.relocateMascot();
     this.finishPass.uniforms.uAccent.value.copy(nextAccent);
     document.documentElement.dataset.cameraJourney = immediate ? 'arrived' : 'traveling';
@@ -769,6 +851,7 @@ export class GameWorld {
     this.pointerTarget.set(this.pointerUv.x - 0.5, 0.5 - this.pointerUv.y);
     this.pointer.set(this.pointerUv.x * 2 - 1, this.pointerUv.y * 2 - 1);
     this.pointerSeen = true;
+    this.director.noteAttention(this.timer.getElapsed());
     const now = performance.now();
     if (this.lastPointerTime > 0) {
       const seconds = Math.max(1 / 240, (now - this.lastPointerTime) / 1000);
@@ -807,6 +890,28 @@ export class GameWorld {
     return true;
   }
 
+  beginCoreHold(clientX: number, clientY: number): boolean {
+    if (this.interactionLocked || this.portalReady) return false;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    if (!this.raycaster.intersectObject(this.artifact.getInteractionObject(), true)[0]) return false;
+    this.coreHeld = true;
+    this.coreHoldStarted = performance.now();
+    this.coreHoldNextHit = this.coreHoldStarted + 430;
+    this.coreHoldTriggered = false;
+    document.documentElement.dataset.coreHold = 'charging';
+    return true;
+  }
+
+  endCoreHold(): boolean {
+    const triggered = this.coreHoldTriggered;
+    this.coreHeld = false;
+    this.coreHoldTriggered = false;
+    document.documentElement.dataset.coreHold = triggered ? 'released' : 'idle';
+    return triggered;
+  }
+
   pick(clientX: number, clientY: number): boolean {
     if (this.interactionLocked) return true;
     const rect = this.renderer.domElement.getBoundingClientRect();
@@ -819,9 +924,14 @@ export class GameWorld {
     if (artifactHit) {
       if (this.portalReady) {
         const destination = this.portalDestinationIndex;
+        this.artifact.beginPortalTravel();
+        if (this.secretPreview && this.games[destination].secret) this.secretPreviewConsumed = true;
         this.portalTeleports += 1;
         document.documentElement.dataset.portalTeleports = String(this.portalTeleports);
         this.localPortalTeleports += 1;
+        const secretLevel = this.localPortalTeleports % SECRET_PORTAL_INTERVAL;
+        this.artifact.setSecretProgress(secretLevel / SECRET_PORTAL_INTERVAL);
+        if (secretLevel === 5 || secretLevel === 8) this.callbacks.onSecretHint(secretLevel);
         this.lastLocalPortalTeleport = Date.now();
         this.writeLocalPortalTeleports();
         this.portalRequiredHits = 4 + this.localPortalTeleports;
@@ -861,6 +971,7 @@ export class GameWorld {
     if (this.interactionLocked && boostCombo) return;
     const now = performance.now();
     if (boostCombo) {
+      this.director.noteAttention(this.timer.getElapsed());
       this.refreshLocalPortalProgress();
       const interval = this.lastHitRequest > 0 ? now - this.lastHitRequest : Number.POSITIVE_INFINITY;
       const cadenceBoost = interval < 320 ? 0.26 : interval < 680 ? 0.2 : interval < 1200 ? 0.14 : 0.1;
@@ -902,7 +1013,7 @@ export class GameWorld {
         'wave',
       );
       this.queuedImpactPower = Math.max(0.42, this.queuedImpactPower * 0.94);
-      this.callbacks.onImpact();
+      this.callbacks.onImpact(strength);
     });
   }
 
@@ -915,7 +1026,7 @@ export class GameWorld {
     this.camera.fov = this.mobile ? 43 : 38;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
-    this.composer.setPixelRatio(this.quality.pixelRatio);
+    this.composer.setPixelRatio(this.quality.pixelRatio * this.adaptiveQuality.getScale());
     this.composer.setSize(width, height);
     this.updateResponsiveLayout();
     if (this.journey && this.chambers.length) {
@@ -925,12 +1036,35 @@ export class GameWorld {
     }
   }
 
+  setQuietMode(enabled: boolean): void {
+    this.quietMode = enabled;
+    this.sparks.setIntensity(enabled ? 0.38 : 1);
+    if (this.bloomPass) this.bloomPass.strength = 0.22 * this.adaptiveQuality.getScale() * (enabled ? 0.48 : 1);
+    const baseFluid = this.quality.preset === 'low' ? 0.56 : this.quality.preset === 'medium' ? 0.82 : 1;
+    this.finishPass.uniforms.uStrength.value = (this.quality.preset === 'low' ? 0.12 : 0.5) * (enabled ? 0.42 : 1);
+    this.finishPass.uniforms.uFluidStrength.value = baseFluid * this.adaptiveQuality.getScale() * (enabled ? 0.38 : 1);
+    document.documentElement.dataset.effects = enabled ? 'quiet' : 'cinematic';
+  }
+
+  setAudioEnergy(bands: AudioBands): void {
+    this.audioBands.bass = bands.bass;
+    this.audioBands.mids = bands.mids;
+    this.audioBands.highs = bands.highs;
+    this.audioBands.overall = bands.overall;
+    this.artifact.setAudioEnergy(this.audioBands);
+    this.sparks.setAudioEnergy(this.quietMode ? bands.highs * 0.28 : bands.highs);
+    if (this.bloomPass) {
+      const quietScale = this.quietMode ? 0.48 : 1;
+      this.bloomPass.strength = (0.22 + bands.overall * 0.035) * this.adaptiveQuality.getScale() * quietScale;
+    }
+  }
+
   private updateResponsiveLayout(): void {
     const portraitMobile = this.mobile && !this.compactLandscape;
     this.cards.forEach((card) => {
       card.group.position.set(
-        portraitMobile ? 0 : this.mobile ? 0.62 : 2.28,
-        portraitMobile ? 2.8 : this.mobile ? 0.18 : 0.08,
+        portraitMobile ? 0 : this.mobile ? 0.62 : innerWidth < 1180 ? 2.65 : 3.15,
+        portraitMobile ? 2.66 : this.mobile ? 0.18 : 0.08,
         this.mobile ? 0.24 : 0.18,
       );
       const scale = portraitMobile
@@ -948,6 +1082,7 @@ export class GameWorld {
       chamber.floorFx.position.set(portraitMobile ? 0.15 : 0, portraitMobile ? -0.93 : 0, 0);
     });
     this.artifact.setLayout(this.mobile, this.compactLandscape);
+    if (this.chambers[this.activeIndex]) this.arrival.mount(this.chambers[this.activeIndex].group, this.mobile);
     this.environments.setMobile(this.mobile);
     if (this.mascot.group.parent) {
       this.mascot.group.position.set(
@@ -990,15 +1125,28 @@ export class GameWorld {
     if (this.destroyed) return;
     requestAnimationFrame(this.animate);
     this.timer.update(timestamp);
+    if (document.hidden) return;
     const delta = Math.min(this.timer.getDelta(), 0.05);
     const elapsed = this.timer.getElapsed();
+    const now = performance.now();
+    if (this.coreHeld && !this.interactionLocked && !this.portalReady && now >= this.coreHoldNextHit) {
+      this.hit();
+      this.coreHoldTriggered = true;
+      const heldFor = now - this.coreHoldStarted;
+      this.coreHoldNextHit = now + Math.max(245, 390 - Math.min(120, heldFor * 0.035));
+      document.documentElement.dataset.coreHold = 'overload';
+    }
     this.pointerSmooth.lerp(this.pointerTarget, 1 - Math.exp(-delta * 4.5));
     this.impactCharge = Math.max(0, this.impactCharge - delta * 0.075);
     this.journeyCharge = Math.max(0, this.journeyCharge - delta * 0.06);
     const portalIdle = this.lastPortalHitTime > 0 ? performance.now() - this.lastPortalHitTime : Number.POSITIVE_INFINITY;
     if (portalIdle > 1800) {
       this.portalHeat = Math.max(0, this.portalHeat - delta * 0.2);
-      if (this.portalReady && this.portalHeat < 0.78) this.portalReady = false;
+      if (this.portalReady && this.portalHeat < 0.78) {
+        this.portalReady = false;
+        this.selectRandomPortalDestination(true);
+        this.updateArtifactDestinationPreview();
+      }
       if (!this.portalReady) {
         this.portalHits = Math.min(
           this.portalHits,
@@ -1022,10 +1170,36 @@ export class GameWorld {
       chamber.floorFx.rotation.y += delta * (index % 2 ? -0.018 : 0.018);
     });
 
+    let sceneDirection = this.director.update(
+      delta,
+      elapsed,
+      this.portalHeat,
+      this.portalReady,
+      this.interactionLocked && document.documentElement.dataset.cameraTransition === 'space',
+    );
+    if (this.quietMode) {
+      sceneDirection = {
+        ...sceneDirection,
+        particleLevel: sceneDirection.particleLevel * 0.42,
+        lightLevel: sceneDirection.lightLevel * 0.78,
+        cameraPush: sceneDirection.cameraPush * 0.58,
+      };
+    }
+    this.interactiveCovers.forEach((cover, index) => cover.setWorldHeat(
+      index === this.activeIndex ? this.portalHeat * sceneDirection.lightLevel : 0,
+    ));
+    this.mascot.setWorldHeat(this.portalHeat * sceneDirection.lightLevel);
+    this.mascot.setScenePhase(sceneDirection.phase);
     this.updateInteractiveCover(delta, elapsed);
 
     const frame: JourneyFrame = this.journey
-      ? this.journey.update(delta, this.pointerSmooth, this.mobile)
+      ? this.journey.update(
+        delta,
+        this.pointerSmooth,
+        this.mobile,
+        sceneDirection.cameraPush,
+        sceneDirection.phase === 'idle' || sceneDirection.phase === 'attention' || sceneDirection.phase === 'dream' ? 1 : 0,
+      )
       : { active: false, progress: 1, intensity: 0, mode: 'idle', route: 'none' };
     const transitionFrame = this.transitions.update(frame);
     if (!this.mascotRelocated && frame.progress >= 0.42) this.relocateMascot();
@@ -1047,15 +1221,31 @@ export class GameWorld {
       this.pendingMascotIndex = null;
       this.interactionLocked = false;
       document.documentElement.dataset.cameraJourney = 'arrived';
+      if (!this.arrivalTriggered) {
+        this.arrivalTriggered = true;
+        this.director.beginArrival();
+        this.arrival.mount(this.chambers[this.activeIndex].group, this.mobile);
+        const accent = new THREE.Color(this.games[this.activeIndex].accent);
+        const secondary = this.games[this.activeIndex].secret
+          ? new THREE.Color(0xffd982)
+          : accent.clone().lerp(new THREE.Color(0xffffff), 0.48);
+        this.arrival.trigger(this.activeIndex, accent, secondary);
+        this.callbacks.onArrival(this.activeIndex);
+        sceneDirection = this.director.update(0, elapsed, this.portalHeat, this.portalReady, false);
+      }
     }
 
     const worldIntensity = transitionFrame.worldIntensity;
-    this.environments.update(delta, elapsed, frame, this.pointerSmooth);
+    this.callbacks.onSceneDirection(sceneDirection);
+    this.environments.update(delta, elapsed, frame, this.pointerSmooth, sceneDirection.particleLevel);
+    this.artifact.setCinematicDirection(sceneDirection.activity, sceneDirection.lightLevel, sceneDirection.portalFocus);
     this.artifact.update(delta, elapsed, frame.progress, worldIntensity, this.pointerSmooth);
     this.tunnel.update(elapsed, frame);
+    this.arrival.update(delta, elapsed);
     this.mascot.update(delta, elapsed);
     this.sparks.update(delta);
     this.fluid.update(delta, this.camera.aspect);
+    this.adaptiveQuality.update(delta);
     this.finishPass.uniforms.tFluid.value = this.fluid.texture;
     this.finishPass.uniforms.uTime.value = elapsed;
     this.finishPass.uniforms.uTransition.value = transitionFrame.postIntensity;
@@ -1065,6 +1255,10 @@ export class GameWorld {
     this.finishPass.uniforms.uRoute.value = frame.route === 'none' ? -1 : ROUTE_SHADER_ID[frame.route];
     this.finishPass.uniforms.uJourneyProgress.value = frame.progress;
     this.finishPass.uniforms.uImpact.value = this.artifact.getImpactEnergy();
+    this.finishPass.uniforms.uSceneEnergy.value = sceneDirection.activity;
+    this.finishPass.uniforms.uAudioEnergy.value = this.audioBands.overall;
+    const targetExposure = 0.99 + sceneDirection.lightLevel * 0.045 + this.audioBands.bass * 0.025;
+    this.renderer.toneMappingExposure += (targetExposure - this.renderer.toneMappingExposure) * (1 - Math.exp(-delta * 2.8));
     this.composer.render(delta);
     if (elapsed - this.lastGpuDiagnostic >= 1) {
       this.lastGpuDiagnostic = elapsed;
@@ -1111,8 +1305,8 @@ export class GameWorld {
       quality: this.quality.preset,
       approvedMascot: 'nine transparent held frames + impact platform',
       artifact: 'procedural morphing metallic core',
-      mouseFluid: `ping-pong half-float FBO ${this.quality.fluidSize}x${this.quality.fluidSize}`,
-      particles: `${this.quality.sparks} GPU-animated sparks`,
+      mouseFluid: `pressure + divergence + curl, four-splat half-float FBO ${this.quality.fluidSize}x${this.quality.fluidSize}`,
+      particles: `${this.quality.sparks} impact sparks + ${this.quality.stars} orbital GPU particles`,
       hitCharge: Number(this.impactCharge.toFixed(2)),
       journeyCharge: Number(this.journeyCharge.toFixed(2)),
       portalHeat: Number(this.portalHeat.toFixed(2)),
@@ -1123,10 +1317,13 @@ export class GameWorld {
       portalDestination: this.games[this.portalDestinationIndex].title,
       portalTeleports: this.portalTeleports,
       environment: this.environments.getActiveKind(),
+      scenePhase: this.director.getPhase(),
       cameraRoute: document.documentElement.dataset.cameraRoute ?? 'none',
       gpuMemory: { ...this.renderer.info.memory },
       drawCalls: this.renderer.info.render.calls,
-      postprocessing: this.quality.bloom ? 'bloom + FBO fluid + journey displacement' : 'FBO fluid + journey displacement',
+      postprocessing: this.quality.bloom
+        ? 'adaptive bloom + pressure fluid + route distortion + world color grade'
+        : 'pressure fluid + route distortion + world color grade',
     };
   }
 
@@ -1134,9 +1331,12 @@ export class GameWorld {
     this.destroyed = true;
     this.fluid.dispose();
     this.tunnel.dispose();
+    this.arrival.dispose();
     this.environments.dispose();
     this.interactiveCovers.forEach((cover) => cover.dispose());
     this.interactiveCovers.clear();
+    this.placeholderTextures.forEach((texture) => texture.dispose());
+    this.placeholderTextures.clear();
     this.sparks.dispose();
     this.mascot.dispose();
     this.artifact.dispose();
@@ -1182,6 +1382,56 @@ export class GameWorld {
     });
   }
 
+  private prepareTexture(texture: THREE.Texture): void {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.needsUpdate = true;
+  }
+
+  private ensureWorldAssets(index: number): Promise<void> {
+    const existing = this.worldAssetPromises.get(index);
+    if (existing) return existing;
+    if (index === 0 && !this.placeholderTextures.has(this.coverTextures[0])) return Promise.resolve();
+    const promise = (async () => {
+      const loader = new THREE.TextureLoader();
+      const [cover, gameplay] = await Promise.all([
+        loader.loadAsync(this.games[index].cover),
+        loader.loadAsync(GAMEPLAY_SOURCES[index]),
+      ]);
+      if (this.destroyed) {
+        cover.dispose();
+        gameplay.dispose();
+        return;
+      }
+      this.prepareTexture(cover);
+      this.prepareTexture(gameplay);
+      const oldCover = this.coverTextures[index];
+      const oldGameplay = this.gameplayTextures.get(index);
+      this.coverTextures[index] = cover;
+      this.gameplayTextures.set(index, gameplay);
+      this.interactiveCovers.get(index)?.setTextures(cover, gameplay);
+      if (this.placeholderTextures.delete(oldCover)) oldCover.dispose();
+      if (oldGameplay && this.placeholderTextures.delete(oldGameplay)) oldGameplay.dispose();
+      if (index === this.portalDestinationIndex) this.updateArtifactDestinationPreview();
+      document.documentElement.dataset.worldAssets = `${this.coverTextures.filter((texture) => !this.placeholderTextures.has(texture)).length}/${this.games.length}`;
+    })().catch((error) => {
+      console.warn(`Could not stream world ${index + 1}`, error);
+    });
+    this.worldAssetPromises.set(index, promise);
+    return promise;
+  }
+
+  private async loadRemainingWorlds(): Promise<void> {
+    const priority = [this.portalDestinationIndex, 1, ...this.games.map((_, index) => index)]
+      .filter((index, position, values) => index > 0 && values.indexOf(index) === position);
+    for (const index of priority) {
+      if (this.destroyed) return;
+      await this.ensureWorldAssets(index);
+    }
+  }
+
   private updateArtifactDestinationPreview(): void {
     if (!this.coverTextures.length) return;
     const destinationIndex = this.portalDestinationIndex;
@@ -1206,20 +1456,40 @@ export class GameWorld {
     this.publishPortalState(true);
   }
 
-  private selectRandomPortalDestination(): void {
-    if (this.games.length <= 1) {
+  private selectRandomPortalDestination(forcePublic = false): void {
+    const secretIndex = this.games.findIndex((game) => game.secret);
+    const nextTeleportNumber = this.localPortalTeleports + 1;
+    const previewSecretEntry = this.secretPreview
+      && !this.secretPreviewConsumed
+      && this.activeIndex !== secretIndex;
+    if (!forcePublic && secretIndex >= 0 && (previewSecretEntry || nextTeleportNumber % SECRET_PORTAL_INTERVAL === 0)) {
+      this.portalDestinationIndex = secretIndex;
+      document.documentElement.dataset.secretPortal = 'revealed';
+      return;
+    }
+    document.documentElement.dataset.secretPortal = 'hidden';
+    const publicIndices = this.games
+      .map((game, index) => ({ game, index }))
+      .filter(({ game }) => !game.secret)
+      .map(({ index }) => index);
+    if (publicIndices.length <= 1) {
       this.portalDestinationIndex = this.activeIndex;
       return;
     }
     const previous = this.portalDestinationIndex;
-    let destination = this.activeIndex;
+    let destination = publicIndices[0];
     for (let attempt = 0; attempt < 5 && destination === this.activeIndex; attempt += 1) {
-      destination = Math.floor(Math.random() * this.games.length);
+      destination = publicIndices[Math.floor(Math.random() * publicIndices.length)];
     }
-    if (destination === this.activeIndex) destination = (this.activeIndex + 1) % this.games.length;
-    if (destination === previous && this.games.length > 2) {
-      destination = (destination + 1) % this.games.length;
-      if (destination === this.activeIndex) destination = (destination + 1) % this.games.length;
+    if (destination === this.activeIndex) {
+      destination = publicIndices.find((index) => index !== this.activeIndex) ?? publicIndices[0];
+    }
+    if (destination === previous && publicIndices.length > 2) {
+      const currentPoolIndex = publicIndices.indexOf(destination);
+      destination = publicIndices[(currentPoolIndex + 1) % publicIndices.length];
+      if (destination === this.activeIndex) {
+        destination = publicIndices[(currentPoolIndex + 2) % publicIndices.length];
+      }
     }
     this.portalDestinationIndex = destination;
   }
@@ -1286,6 +1556,7 @@ export class GameWorld {
     this.portalHits = 0;
     this.portalHeat = 0;
     this.portalReady = false;
+    this.artifact.setSecretProgress(0);
     try {
       localStorage.removeItem(PORTAL_PROGRESS_KEY);
     } catch {

@@ -91,7 +91,9 @@ export class EnvironmentParticles {
   private impact = 0;
 
   constructor(preset: QualityPreset) {
-    const count = preset === 'low' ? 120 : preset === 'medium' ? 280 : 560;
+    // Still one GPU draw call: richer depth on strong devices without adding
+    // hundreds of individual meshes to the scene graph.
+    const count = preset === 'low' ? 160 : preset === 'medium' ? 640 : 1400;
     const positions = new Float32Array(count * 3);
     const seeds = new Float32Array(count);
     const layers = new Float32Array(count);

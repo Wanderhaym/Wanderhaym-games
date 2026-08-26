@@ -4,6 +4,7 @@ export type SparkBurstShape = 'wave' | 'hammer' | 'transition';
 
 const vertexShader = `
   uniform float uTime;
+  uniform float uAudioEnergy;
   attribute vec3 aVelocity;
   attribute float aStart;
   attribute float aDuration;
@@ -25,7 +26,7 @@ const vertexShader = `
     float fadeOut = 1.0 - smoothstep(0.45, 1.0, life);
     vAlpha = alive * fadeIn * fadeOut;
     vHeat = 1.0 - life;
-    gl_PointSize = (2.0 + aSeed * 2.6) * aSize * (1.0 + vHeat * 0.38) * (34.0 / max(1.25, -viewPosition.z));
+    gl_PointSize = (2.0 + aSeed * 2.6) * aSize * (1.0 + vHeat * 0.38 + uAudioEnergy * 0.22) * (34.0 / max(1.25, -viewPosition.z));
     gl_Position = projectionMatrix * viewPosition;
   }
 `;
@@ -58,6 +59,7 @@ export class SparkSystem {
   private readonly count: number;
   private elapsed = 0;
   private cursor = 0;
+  private intensityScale = 1;
 
   constructor(count: number) {
     this.count = count;
@@ -88,6 +90,7 @@ export class SparkSystem {
         uTime: { value: 0 },
         uColorA: { value: new THREE.Color(0xfff2bd) },
         uColorB: { value: new THREE.Color(0xff6818) },
+        uAudioEnergy: { value: 0 },
       },
       vertexShader,
       fragmentShader,
@@ -111,7 +114,7 @@ export class SparkSystem {
     shape: SparkBurstShape = 'wave',
   ): void {
     if (accent) this.material.uniforms.uColorB.value.copy(accent);
-    const burstCount = Math.max(5, Math.min(this.count, Math.floor(this.count * portion)));
+    const burstCount = Math.max(3, Math.min(this.count, Math.floor(this.count * portion * this.intensityScale)));
     const velocityScale = THREE.MathUtils.clamp(0.62 + power * 0.36, 0.7, 1.5);
     const viewerX = viewerDirection?.x ?? 0;
     const viewerY = viewerDirection?.y ?? 0;
@@ -167,6 +170,14 @@ export class SparkSystem {
   update(delta: number): void {
     this.elapsed += delta;
     this.material.uniforms.uTime.value = this.elapsed;
+  }
+
+  setIntensity(scale: number): void {
+    this.intensityScale = THREE.MathUtils.clamp(scale, 0.24, 1);
+  }
+
+  setAudioEnergy(value: number): void {
+    this.material.uniforms.uAudioEnergy.value = THREE.MathUtils.clamp(value, 0, 1);
   }
 
   dispose(): void {

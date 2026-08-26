@@ -57,6 +57,15 @@ export class JourneyTunnel {
   readonly group = new THREE.Group();
   private readonly material: THREE.ShaderMaterial;
   private readonly streaks: THREE.LineSegments;
+  private readonly pawGuides = new THREE.Group();
+  private readonly pawGuideMaterial = new THREE.MeshBasicMaterial({
+    color: 0x82ffd0,
+    transparent: true,
+    opacity: 0,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
   private profile: TransitionProfile = {
     route: 'tunnel',
     durationScale: 1,
@@ -107,11 +116,28 @@ export class JourneyTunnel {
     this.streaks.renderOrder = 1000;
     this.group.name = 'Camera hyperspace particle tunnel';
     this.group.visible = false;
-    this.group.add(this.streaks);
+    this.pawGuides.name = 'Paw aperture becoming tunnel guides';
+    const guideParts = [
+      { x: 0, y: -0.36, radius: 0.72, sx: 1, sy: 0.76 },
+      { x: -0.72, y: 0.38, radius: 0.22, sx: 1, sy: 1.46 },
+      { x: -0.26, y: 0.72, radius: 0.22, sx: 1, sy: 1.52 },
+      { x: 0.26, y: 0.72, radius: 0.22, sx: 1, sy: 1.52 },
+      { x: 0.72, y: 0.38, radius: 0.22, sx: 1, sy: 1.46 },
+    ];
+    guideParts.forEach((part, index) => {
+      const guide = new THREE.Mesh(new THREE.TorusGeometry(part.radius, 0.018, 6, 56), this.pawGuideMaterial);
+      guide.position.set(part.x, part.y, -2.4 - index * 0.03);
+      guide.scale.set(part.sx, part.sy, 1);
+      guide.renderOrder = 1001;
+      guide.userData.basePosition = guide.position.clone();
+      this.pawGuides.add(guide);
+    });
+    this.group.add(this.streaks, this.pawGuides);
   }
 
   setAccent(accent: THREE.Color): void {
     this.material.uniforms.uAccent.value.copy(accent);
+    this.pawGuideMaterial.color.copy(accent).lerp(new THREE.Color(0xff9a36), 0.28);
   }
 
   setProfile(profile: TransitionProfile): void {
@@ -128,6 +154,7 @@ export class JourneyTunnel {
       slingshot: [0.72, 0.62, 1.35],
       ascent: [0.55, 0.82, 0.72],
       recoil: [1.65, 1.12, 1.3],
+      'relic-forge': [0.34, 1.46, 0.92],
     };
     const [bend, radius, streak] = tunnelShape[route];
     this.material.uniforms.uBend.value = bend;
@@ -144,6 +171,16 @@ export class JourneyTunnel {
     this.material.uniforms.uTime.value = elapsed;
     this.material.uniforms.uProgress.value = frame.progress;
     this.material.uniforms.uIntensity.value = intensity;
+    const pawEnvelope = frame.active && frame.mode === 'space'
+      ? 1 - THREE.MathUtils.smoothstep(frame.progress, 0.04, 0.38)
+      : 0;
+    this.pawGuides.visible = pawEnvelope > 0.01;
+    this.pawGuideMaterial.opacity = pawEnvelope * 0.72;
+    this.pawGuides.scale.setScalar(1 + frame.progress * 6.5);
+    this.pawGuides.position.z = -frame.progress * 11;
+    this.pawGuides.children.forEach((guide, index) => {
+      guide.rotation.z = (index - 2) * frame.progress * 0.16;
+    });
     this.group.position.set(0, 0, 0);
     this.group.scale.set(1, 1, 1);
     if (frame.route === 'spiral') {
@@ -183,6 +220,12 @@ export class JourneyTunnel {
       this.group.rotation.z = kick * 0.24;
       this.group.scale.set(1.08 + Math.abs(kick) * 0.22, 0.92 - Math.abs(kick) * 0.08, 1);
       this.group.position.x = kick * 0.48;
+    } else if (frame.route === 'relic-forge') {
+      const gate = Math.sin(frame.progress * Math.PI * 6);
+      const envelope = Math.sin(frame.progress * Math.PI);
+      this.group.rotation.z = gate * envelope * 0.055;
+      this.group.scale.set(0.62 + envelope * 0.08, 1.5 - envelope * 0.16, 1);
+      this.group.position.x = gate * envelope * 0.22;
     } else {
       this.group.rotation.z = Math.sin(frame.progress * Math.PI * 2) * 0.075;
     }
@@ -191,5 +234,9 @@ export class JourneyTunnel {
   dispose(): void {
     this.streaks.geometry.dispose();
     this.material.dispose();
+    this.pawGuides.traverse((object) => {
+      if (object instanceof THREE.Mesh) object.geometry.dispose();
+    });
+    this.pawGuideMaterial.dispose();
   }
 }

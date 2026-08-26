@@ -12,15 +12,111 @@
   <meta property="og:description" content="Настоящая WebGL-сцена с перспективной камерой, объёмными карточками и живым кузнецом Wanderhaym.">
   <meta property="og:image" content="./og-image.jpg">
   <link rel="icon" href="./favicon.png" type="image/png">
+  <link rel="stylesheet" href="/src/styles/main.css">
+  <link rel="preload" as="image" data-forge-frame="cat-01-ready.webp" href="./assets/mascot/runtime/cat-01-ready.webp">
+  <link rel="preload" as="image" data-forge-frame="cat-02-windup.webp" href="./assets/mascot/runtime/cat-02-windup.webp">
+  <link rel="preload" as="image" data-forge-frame="cat-03-swing.webp" href="./assets/mascot/runtime/cat-03-swing.webp">
+  <link rel="preload" as="image" data-forge-frame="cat-04-contact.webp" href="./assets/mascot/runtime/cat-04-contact.webp">
+  <link rel="preload" as="image" data-forge-frame="cat-05-impact.webp" href="./assets/mascot/runtime/cat-05-impact.webp">
+  <link rel="preload" as="image" data-forge-frame="cat-recover.webp" href="./assets/mascot/runtime/cat-recover.webp">
+  <link rel="preload" as="image" data-forge-frame="cat-00-idle.webp" href="./assets/mascot/runtime/cat-00-idle.webp">
+  <link rel="preload" as="image" data-forge-frame="platform-hit.webp" href="./assets/mascot/runtime/platform-hit.webp">
+  <link rel="preload" as="image" data-forge-frame="platform-idle.webp" href="./assets/mascot/runtime/platform-idle.webp">
 </head>
 <body>
   <div class="loader" id="loader" role="status" aria-live="polite">
-    <div class="loader__mark">W</div>
-    <p class="loader__eyebrow">Wanderhaym / WebGL Experience</p>
-    <h1>Сайт игр<br>Wanderhaym</h1>
-    <div class="loader__track"><i id="loaderBar"></i></div>
-    <span id="loaderValue">00%</span>
+    <div class="forge-loader__embers" id="loaderEmbers" aria-hidden="true"></div>
+    <div class="forge-loader__shell">
+      <div class="forge-loader__hero">
+        <div class="forge-loader__stage" aria-hidden="true">
+          <div class="forge-loader__halo"></div>
+          <div class="forge-loader__impact"></div>
+          <img class="forge-loader__cat" id="loaderCat" src="./assets/mascot/runtime/cat-00-idle.webp" alt="">
+          <img class="forge-loader__platform" id="loaderPlatform" src="./assets/mascot/runtime/platform-idle.webp" alt="">
+          <div class="forge-loader__paw-energy" aria-hidden="true">
+            <span class="forge-loader__paw-burst"></span>
+            <span class="forge-loader__paw-glyph">
+              <i class="forge-loader__paw-pad"></i>
+              <i class="forge-loader__paw-toe paw-toe--1"></i>
+              <i class="forge-loader__paw-toe paw-toe--2"></i>
+              <i class="forge-loader__paw-toe paw-toe--3"></i>
+              <i class="forge-loader__paw-toe paw-toe--4"></i>
+            </span>
+          </div>
+          <div class="forge-loader__sparks" id="loaderSparks"></div>
+        </div>
+        <div class="forge-loader__copy">
+          <h1><span>Wanderhaym</span></h1>
+          <p class="forge-loader__present">представляет</p>
+        </div>
+      </div>
+      <div class="loader__track" aria-hidden="true"><i id="loaderBar"></i></div>
+      <div class="forge-loader__meta">
+        <span id="loaderStatus">РАЗЖИГАЮ ОГОНЬ</span>
+        <strong id="loaderValue">00%</strong>
+      </div>
+    </div>
+    <div class="forge-loader__world-flash" aria-hidden="true"></div>
   </div>
+
+  <script>
+    (() => {
+      const root = document.getElementById('loader');
+      const cat = document.getElementById('loaderCat');
+      const platform = document.getElementById('loaderPlatform');
+      const bar = document.getElementById('loaderBar');
+      const value = document.getElementById('loaderValue');
+      if (!root || !cat || !platform || !bar || !value) return;
+
+      const frameUrls = Object.fromEntries(
+        [...document.querySelectorAll('[data-forge-frame]')].map((link) => [link.dataset.forgeFrame, link.href]),
+      );
+      const asset = (name) => frameUrls[name];
+      const boot = window.__wanderhaymForgeKickoff = {
+        complete: false,
+        progress: 0,
+        startedAt: performance.now(),
+      };
+      root.dataset.forgeKickoff = 'autonomous';
+
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        boot.progress = .08;
+        boot.complete = true;
+        bar.style.width = '8%';
+        value.textContent = '08%';
+        window.dispatchEvent(new Event('wanderhaym:forge-kickoff-complete'));
+        return;
+      }
+
+      const after = (delay, callback) => window.setTimeout(callback, delay);
+      after(90, () => { root.dataset.forgeState = 'windup'; cat.src = asset('cat-01-ready.webp'); });
+      after(165, () => { cat.src = asset('cat-02-windup.webp'); });
+      after(250, () => { root.dataset.forgeState = 'swing'; cat.src = asset('cat-03-swing.webp'); });
+      after(335, () => {
+        root.dataset.forgeState = 'contact';
+        root.classList.add('is-impacting');
+        cat.src = asset('cat-04-contact.webp');
+        platform.src = asset('platform-hit.webp');
+        boot.progress = .08;
+        bar.style.width = '8%';
+        root.style.setProperty('--forge-progress', '.08');
+        value.textContent = '08%';
+      });
+      after(420, () => { root.dataset.forgeState = 'impact'; cat.src = asset('cat-05-impact.webp'); });
+      after(510, () => {
+        root.classList.remove('is-impacting');
+        root.dataset.forgeState = 'recover';
+        cat.src = asset('cat-recover.webp');
+        platform.src = asset('platform-idle.webp');
+      });
+      after(625, () => { root.dataset.forgeState = 'settle'; cat.src = asset('cat-00-idle.webp'); });
+      after(790, () => {
+        root.dataset.forgeState = 'rest';
+        boot.complete = true;
+        window.dispatchEvent(new Event('wanderhaym:forge-kickoff-complete'));
+      });
+    })();
+  </script>
 
   <canvas id="world" aria-hidden="true"></canvas>
   <div class="grain" aria-hidden="true"></div>
@@ -28,7 +124,7 @@
   <header class="hud">
     <a class="brand" id="homeButton" href="https://vk.ru/wanderhayms" target="_blank" rel="noopener" aria-label="Открыть сообщество Wanderhaym ВКонтакте">
       <span class="brand__mark">W</span>
-      <span><strong>Wanderhaym</strong><small>real 3D games</small></span>
+      <span><strong>Wanderhaym</strong><small>игровые миры</small></span>
     </a>
     <div class="portal-hud" id="portalHud" data-state="cold" aria-live="polite">
       <div class="portal-hud__top">
@@ -43,14 +139,18 @@
         <span class="sound__bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
         <span>Звук</span>
       </button>
+      <button class="quiet" id="quietButton" type="button" aria-label="Включить спокойные эффекты" aria-pressed="false">
+        <span aria-hidden="true">◌</span><span>Эффекты</span>
+      </button>
       <a class="support" href="https://www.donationalerts.com/r/wanderhaym" target="_blank" rel="noopener">Поддержать</a>
     </nav>
   </header>
 
   <div class="teleport-counter" id="teleportCounter" data-state="connecting" aria-live="polite">
-    <span>ТЕЛЕПОРТАЦИЙ</span>
+    <span>ВСЕГО ТЕЛЕПОРТАЦИЙ</span>
     <strong id="teleportCounterValue">…</strong>
   </div>
+  <div class="interaction-coach" id="interactionCoach" data-state="cold" aria-live="polite">Нажми на ядро: кот начнёт ковать портал</div>
 
   <main class="ui" id="ui">
     <section class="game-info" aria-live="polite">
@@ -67,11 +167,11 @@
       <button id="nextButton" type="button" aria-label="Следующая игра">→</button>
     </nav>
 
-    <p class="world-label" aria-hidden="true"><span>THREE.JS WORLD</span><span>CAMERA JOURNEY / FBO FLUID / GPU CORE</span></p>
+    <p class="world-label" aria-hidden="true"><span>WANDERHAYM</span><span>МИРЫ, КОТОРЫЕ ОТКРЫВАЮТСЯ УДАРОМ</span></p>
   </main>
 
   <nav class="sr-only" id="accessibleGames" aria-label="Все игры Wanderhaym"></nav>
-  <audio id="music" loop preload="auto" playsinline></audio>
+  <audio id="music" loop preload="none" playsinline></audio>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

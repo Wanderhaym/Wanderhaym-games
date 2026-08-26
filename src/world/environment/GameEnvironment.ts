@@ -22,6 +22,11 @@ interface BoundariesRig {
   frames: THREE.Group;
 }
 
+interface SignatureRig {
+  group: THREE.Group;
+  mode: number;
+}
+
 function markOpacity(material: THREE.Material, opacity: number): void {
   material.transparent = true;
   material.opacity = opacity;
@@ -40,6 +45,7 @@ export class GameEnvironment {
   private compatibility: CompatibilityRig | null = null;
   private ideas: IdeasRig | null = null;
   private boundaries: BoundariesRig | null = null;
+  private signature: SignatureRig | null = null;
   private impact = 0;
   private mobile = false;
 
@@ -112,6 +118,7 @@ export class GameEnvironment {
     if (this.compatibility) this.updateCompatibility(delta, elapsed, pointer, disperse);
     if (this.ideas) this.updateIdeas(delta, elapsed, pointer, disperse, easedReveal);
     if (this.boundaries) this.updateBoundaries(elapsed, pointer);
+    if (this.signature) this.updateSignature(delta, elapsed, pointer, disperse);
   }
 
   dispose(): void {
@@ -308,18 +315,130 @@ export class GameEnvironment {
       wireframe: true,
       blending: THREE.AdditiveBlending,
     });
-    markOpacity(rootMaterial, 0.07);
-    for (let index = 0; index < 1; index += 1) {
-      const structure = new THREE.Mesh(
-        new THREE.TorusKnotGeometry(1.8 + index * 0.72, 0.018 + index * 0.006, 120, 5, 2 + index, 3),
-        rootMaterial.clone(),
-      );
-      markOpacity(structure.material as THREE.Material, 0.07);
+    markOpacity(rootMaterial, theme.index === 10 ? 0.16 : 0.085);
+    const secondaryMaterial = new THREE.MeshBasicMaterial({
+      color: theme.secondary,
+      wireframe: true,
+      blending: THREE.AdditiveBlending,
+    });
+    markOpacity(secondaryMaterial, theme.index === 10 ? 0.12 : 0.07);
+    const group = new THREE.Group();
+    group.name = `World ${theme.index + 1} authored signature motif`;
+    const add = (geometry: THREE.BufferGeometry, secondary = false): THREE.Mesh => {
+      const material = (secondary ? secondaryMaterial : rootMaterial).clone();
+      markOpacity(material, secondary ? secondaryMaterial.opacity : rootMaterial.opacity);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.userData.signatureSeed = group.children.length * 0.618;
+      group.add(mesh);
+      return mesh;
+    };
+
+    if (theme.index === 2) {
+      // Two trajectories almost meet, then pass one another like a decision.
+      const left = add(new THREE.TorusGeometry(1.65, 0.026, 6, 96, Math.PI * 1.55));
+      const right = add(new THREE.TorusGeometry(1.65, 0.026, 6, 96, Math.PI * 1.55), true);
+      left.position.set(-1.55, 0.1, -3.5);
+      right.position.set(1.55, 0.1, -3.5);
+      left.rotation.z = -0.62;
+      right.rotation.z = Math.PI + 0.62;
+    } else if (theme.index === 3) {
+      // Smoke columns unwind upward and leave a clean centre.
+      for (let i = 0; i < 6; i += 1) {
+        const smoke = add(new THREE.TorusKnotGeometry(0.48 + i * 0.14, 0.014, 72, 4, 2, 3), i % 2 === 1);
+        smoke.position.set(-2.8 + i * 1.1, -0.8 + (i % 2) * 0.5, -4.2 - (i % 3) * 0.35);
+        smoke.scale.y = 1.8;
+      }
+    } else if (theme.index === 4) {
+      // A readable chain crosses the whole chamber.
+      for (let i = 0; i < 8; i += 1) {
+        const link = add(new THREE.TorusGeometry(0.42, 0.055, 7, 32), i % 2 === 1);
+        link.position.set(-3.5 + i, Math.sin(i * 0.8) * 0.42, -3.7 - (i % 2) * 0.22);
+        link.rotation.set(i % 2 ? Math.PI / 2 : 0, 0.34, i * 0.08);
+      }
+    } else if (theme.index === 5) {
+      // A spatial waveform made from breathing rings.
+      for (let i = 0; i < 9; i += 1) {
+        const wave = add(new THREE.TorusGeometry(0.42, 0.022, 6, 48), i % 2 === 1);
+        wave.position.set(-4 + i, Math.sin(i * 0.9) * 0.62, -4.1);
+        wave.scale.y = 0.45 + Math.abs(Math.sin(i * 0.72)) * 1.45;
+      }
+    } else if (theme.index === 7) {
+      // Question constellation: nodes climb and curl around an absent answer.
+      for (let i = 0; i < 12; i += 1) {
+        const node = add(new THREE.OctahedronGeometry(0.08 + (i % 3) * 0.025, 0), i % 3 === 0);
+        const angle = -0.6 + i * 0.39;
+        node.position.set(Math.cos(angle) * (1.25 + i * 0.09), 1.7 - i * 0.3, -3.8);
+      }
+    } else if (theme.index === 8) {
+      // Domino fragments float on different axes, never repeating one pose.
+      for (let i = 0; i < 14; i += 1) {
+        const domino = add(new THREE.BoxGeometry(0.34, 0.72, 0.09), i % 4 === 0);
+        const angle = i * 2.399;
+        domino.position.set(Math.cos(angle) * (2.1 + (i % 4) * 0.46), -1.5 + (i % 6) * 0.62, -3.5 - (i % 3) * 0.5);
+        domino.rotation.set(i * 0.31, i * 0.58, -i * 0.27);
+      }
+    } else if (theme.index === 9) {
+      // Two mirrored truths never align perfectly.
+      const left = add(new THREE.PlaneGeometry(3.2, 5.1, 6, 8));
+      const right = add(new THREE.PlaneGeometry(3.2, 5.1, 6, 8), true);
+      left.position.set(-2.1, 0, -4.2);
+      right.position.set(2.1, 0, -4.2);
+      left.rotation.y = 0.2;
+      right.rotation.y = -0.2;
+    } else if (theme.index === 10) {
+      // The secret world receives a heavy 6 × 7 bronze relic grid.
+      for (let y = 0; y < 6; y += 1) {
+        for (let x = 0; x < 7; x += 1) {
+          const cell = add(new THREE.BoxGeometry(0.43, 0.36, 0.06), (x + y) % 5 === 0);
+          cell.position.set((x - 3) * 0.52, (y - 2.5) * 0.44, -4.6);
+          cell.userData.gridDistance = Math.hypot(x - 3, y - 2.5);
+        }
+      }
+    } else {
+      const structure = add(new THREE.TorusKnotGeometry(1.8, 0.02, 120, 5, 2, 3));
       structure.position.set(2.8, -0.2, -4.1);
-      structure.rotation.set(index * 0.5, index * 0.7, index * 0.9);
-      this.moduleRoot.add(structure);
     }
+    group.children.forEach((object) => {
+      object.userData.signatureBasePosition = object.position.clone();
+    });
     rootMaterial.dispose();
+    secondaryMaterial.dispose();
+    this.moduleRoot.add(group);
+    this.signature = { group, mode: theme.index };
+  }
+
+  private updateSignature(delta: number, elapsed: number, pointer: THREE.Vector2, disperse: number): void {
+    const rig = this.signature!;
+    rig.group.rotation.y = pointer.x * 0.055;
+    rig.group.rotation.x = -pointer.y * 0.025;
+    rig.group.children.forEach((object, index) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const seed = object.userData.signatureSeed as number;
+      const basePosition = object.userData.signatureBasePosition as THREE.Vector3;
+      object.position.copy(basePosition);
+      if (rig.mode === 3) {
+        object.rotation.y += delta * (0.12 + index * 0.018);
+        object.position.y = basePosition.y + Math.sin(elapsed * 0.8 + seed * 9) * 0.12;
+      } else if (rig.mode === 4) {
+        object.rotation.z += delta * (index % 2 ? -0.14 : 0.14);
+      } else if (rig.mode === 5) {
+        const pulse = 0.72 + Math.abs(Math.sin(elapsed * 2.2 - index * 0.45)) * 0.58;
+        object.scale.x = pulse;
+      } else if (rig.mode === 7) {
+        object.scale.setScalar(0.82 + Math.sin(elapsed * 1.7 + index) * 0.18 + this.impact * 0.24);
+      } else if (rig.mode === 8) {
+        object.rotation.x += delta * (0.12 + (index % 4) * 0.04);
+        object.rotation.y -= delta * (0.1 + (index % 3) * 0.05);
+      } else if (rig.mode === 9) {
+        object.position.y = basePosition.y + Math.sin(elapsed * 0.54 + index * Math.PI) * 0.18;
+      } else if (rig.mode === 10) {
+        const distance = object.userData.gridDistance as number;
+        object.position.z = basePosition.z + Math.sin(elapsed * 1.35 - distance * 0.65) * 0.1 + this.impact * 0.18;
+      } else {
+        object.rotation.z += delta * (index % 2 ? -0.08 : 0.08);
+      }
+      if (disperse > 0) object.position.z -= disperse * (0.6 + index % 3);
+    });
   }
 
   private buildBoundaries(theme: WorldTheme): void {
@@ -396,5 +515,6 @@ export class GameEnvironment {
     this.compatibility = null;
     this.ideas = null;
     this.boundaries = null;
+    this.signature = null;
   }
 }

@@ -10,7 +10,8 @@ export type PortalRevealMode =
   | 'shards'
   | 'decision'
   | 'smoke'
-  | 'truth';
+  | 'truth'
+  | 'domino';
 
 export function portalRevealModeValue(mode: PortalRevealMode): number {
   if (mode === 'grid') return 1;
@@ -22,6 +23,7 @@ export function portalRevealModeValue(mode: PortalRevealMode): number {
   if (mode === 'decision') return 7;
   if (mode === 'smoke') return 8;
   if (mode === 'truth') return 9;
+  if (mode === 'domino') return 10;
   return 0;
 }
 
@@ -39,6 +41,7 @@ const revealShader = {
     uGameplayExposure: { value: 0.82 },
     uMode: { value: 0 },
     uAccent: { value: new THREE.Color(0xfa6a55) },
+    uWorldHeat: { value: 0 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -61,6 +64,7 @@ const revealShader = {
     uniform float uGameplayExposure;
     uniform float uMode;
     uniform vec3 uAccent;
+    uniform float uWorldHeat;
     varying vec2 vUv;
 
     float hash(vec2 point) {
@@ -92,8 +96,9 @@ const revealShader = {
       float decisionMode = 1.0 - step(0.5, abs(uMode - 7.0));
       float smokeMode = 1.0 - step(0.5, abs(uMode - 8.0));
       float truthMode = 1.0 - step(0.5, abs(uMode - 9.0));
+      float dominoMode = 1.0 - step(0.5, abs(uMode - 10.0));
       float organicMode = 1.0 - gridMode - waveformMode - radarMode - chainMode
-        - bondMode - shardsMode - decisionMode - smokeMode - truthMode;
+        - bondMode - shardsMode - decisionMode - smokeMode - truthMode - dominoMode;
       float waveformRadius = sharedRadius;
       float waveformEnvelope = 1.0 - smoothstep(
         waveformRadius * 0.72,
@@ -160,10 +165,21 @@ const revealShader = {
       float truthEnvelope = 1.0 - smoothstep(truthSize - 0.025, truthSize + 0.012, truthDistance);
       float truthScan = 0.5 + 0.5 * sin(delta.y * 132.0 - uTime * 4.5);
       float truthHole = truthEnvelope * uReveal;
+      vec2 dominoGridSize = vec2(7.0, 6.0);
+      vec2 dominoCell = floor(vUv * dominoGridSize);
+      vec2 dominoCenter = (dominoCell + 0.5) / dominoGridSize;
+      float dominoDistance = length(dominoCenter - uPointer);
+      float dominoSeed = hash(dominoCell + vec2(43.0, 17.0));
+      float dominoReach = 1.0 - smoothstep(
+        sharedRadius - 0.06 + dominoSeed * 0.045,
+        sharedRadius + 0.018 + dominoSeed * 0.045,
+        dominoDistance
+      );
+      float dominoHole = dominoReach * uReveal;
       float hole = organicHole * organicMode + gridHole * gridMode
         + waveformHole * waveformMode + radarHole * radarMode + chainHole * chainMode
         + bondHole * bondMode + shardHole * shardsMode + decisionHole * decisionMode
-        + smokeHole * smokeMode + truthHole * truthMode;
+        + smokeHole * smokeMode + truthHole * truthMode + dominoHole * dominoMode;
 
       vec2 direction = normalize(delta + vec2(0.0001));
       float innerWave = sin(distanceToTouch * 92.0 - uTime * 7.2) * 0.0038 * hole * organicMode;
@@ -237,6 +253,12 @@ const revealShader = {
       float truthDiamond = (1.0 - smoothstep(0.0, 0.026, abs(truthDistance - truthSize)))
         * uReveal * truthMode;
       float truthScanGlow = pow(max(0.0, truthScan), 12.0) * truthEnvelope * uReveal * truthMode;
+      vec2 dominoUv = fract(vUv * dominoGridSize);
+      float dominoEdgeDistance = min(min(dominoUv.x, 1.0 - dominoUv.x), min(dominoUv.y, 1.0 - dominoUv.y));
+      float dominoEdge = (1.0 - smoothstep(0.01, 0.055, dominoEdgeDistance))
+        * dominoReach * uReveal * dominoMode;
+      float dominoFront = (1.0 - smoothstep(0.0, 0.038, abs(dominoDistance - sharedRadius)))
+        * uReveal * dominoMode;
       color += uAccent * rim * 0.92;
       color += mix(uAccent, vec3(1.0, 0.82, 0.36), 0.55) * ripple * 0.22;
       color += mix(uAccent, vec3(1.0, 0.82, 0.45), 0.42) * gridScan * 0.18;
@@ -248,6 +270,11 @@ const revealShader = {
       color += mix(uAccent, vec3(1.0, 0.78, 0.32), 0.6) * coinRim * 0.38;
       color += mix(uAccent, vec3(0.62, 0.78, 0.66), 0.72) * smokeEdge * 0.12;
       color += uAccent * truthDiamond * 0.28;
+      color += mix(uAccent, vec3(1.0, 0.86, 0.48), 0.62) * dominoEdge * 0.16;
+      color += mix(uAccent, vec3(1.0, 0.72, 0.24), 0.48) * dominoFront * 0.26;
+      float linkedLight = (1.0 - smoothstep(0.12, 0.9, length(vUv - vec2(0.08, 0.92))))
+        * uWorldHeat;
+      color += mix(uAccent, vec3(1.0, 0.28, 0.04), 0.58) * linkedLight * 0.2;
       gl_FragColor = vec4(color, 1.0);
     }
   `,
@@ -255,8 +282,9 @@ const revealShader = {
 
 export class InteractivePortalCover {
   readonly material: THREE.ShaderMaterial;
-  private readonly cover: THREE.Texture;
-  private readonly gameplay: THREE.Texture;
+  private cover: THREE.Texture;
+  private gameplay: THREE.Texture;
+  private displayAspect = 1;
   private readonly pointerTarget = new THREE.Vector2(0.5, 0.5);
   private revealTarget = 0;
   private reveal = 0;
@@ -286,12 +314,21 @@ export class InteractivePortalCover {
   }
 
   setDisplayAspect(targetAspect: number): void {
+    this.displayAspect = targetAspect;
     this.fitTexture(this.cover, targetAspect);
     this.fitTexture(this.gameplay, targetAspect);
     this.material.uniforms.uCoverScale.value.copy(this.cover.repeat);
     this.material.uniforms.uCoverOffset.value.copy(this.cover.offset);
     this.material.uniforms.uGameplayScale.value.copy(this.gameplay.repeat);
     this.material.uniforms.uGameplayOffset.value.copy(this.gameplay.offset);
+  }
+
+  setTextures(cover: THREE.Texture, gameplay: THREE.Texture): void {
+    this.cover = cover;
+    this.gameplay = gameplay;
+    this.material.uniforms.tCover.value = cover;
+    this.material.uniforms.tGameplay.value = gameplay;
+    this.setDisplayAspect(this.displayAspect);
   }
 
   setTouch(uv: THREE.Vector2 | null): void {
@@ -310,9 +347,11 @@ export class InteractivePortalCover {
     );
   }
 
+  setWorldHeat(heat: number): void {
+    this.material.uniforms.uWorldHeat.value = THREE.MathUtils.clamp(heat, 0, 1.35);
+  }
+
   dispose(): void {
-    this.cover.dispose();
-    this.gameplay.dispose();
     this.material.dispose();
   }
 

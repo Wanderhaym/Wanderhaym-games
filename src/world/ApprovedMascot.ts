@@ -1,15 +1,16 @@
 import * as THREE from 'three';
-import cat00Url from '../../assets/mascot/web/cat-00-idle.webp?url';
-import cat01Url from '../../assets/mascot/web/cat-01-ready.webp?url';
-import cat02Url from '../../assets/mascot/web/cat-02-windup.webp?url';
-import cat03Url from '../../assets/mascot/web/cat-03-swing.webp?url';
-import cat04Url from '../../assets/mascot/web/cat-04-contact.webp?url';
-import cat05Url from '../../assets/mascot/web/cat-05-impact.webp?url';
-import recoverUrl from '../../assets/mascot/web/cat-recover.webp?url';
-import blinkHalfUrl from '../../assets/mascot/web/cat-blink-half.webp?url';
-import blinkClosedUrl from '../../assets/mascot/web/cat-blink.webp?url';
-import idlePlatformUrl from '../../assets/mascot/web/platform-idle.webp?url';
-import hitPlatformUrl from '../../assets/mascot/web/platform-hit.webp?url';
+import cat00Url from '../../assets/mascot/runtime/cat-00-idle.webp?url';
+import cat01Url from '../../assets/mascot/runtime/cat-01-ready.webp?url';
+import cat02Url from '../../assets/mascot/runtime/cat-02-windup.webp?url';
+import cat03Url from '../../assets/mascot/runtime/cat-03-swing.webp?url';
+import cat04Url from '../../assets/mascot/runtime/cat-04-contact.webp?url';
+import cat05Url from '../../assets/mascot/runtime/cat-05-impact.webp?url';
+import recoverUrl from '../../assets/mascot/runtime/cat-recover.webp?url';
+import blinkHalfUrl from '../../assets/mascot/runtime/cat-blink-half.webp?url';
+import blinkClosedUrl from '../../assets/mascot/runtime/cat-blink.webp?url';
+import idlePlatformUrl from '../../assets/mascot/runtime/platform-idle.webp?url';
+import hitPlatformUrl from '../../assets/mascot/runtime/platform-hit.webp?url';
+import type { ScenePhase } from './SceneDirector';
 
 type ImpactCallback = (worldPosition: THREE.Vector3) => void;
 
@@ -52,6 +53,8 @@ export class ApprovedMascot {
   private queuedHits = 0;
   private impactSent = false;
   private onImpact: ImpactCallback | null = null;
+  private worldHeat = 0;
+  private scenePhase: ScenePhase = 'idle';
 
   constructor() {
     this.group.name = 'Approved Wanderhaym cat / held-frame WebGL animation';
@@ -117,9 +120,18 @@ export class ApprovedMascot {
   update(delta: number, elapsed: number): void {
     if (this.frames.length !== 9 || !this.idlePlatform || !this.hitPlatform) return;
     if (this.hitTime < 0) {
-      this.updateBlink(elapsed % 2);
-      this.character.position.y = 0.22 + Math.sin(elapsed * 1.6) * 0.018;
-      this.character.rotation.z = Math.sin(elapsed * 0.75) * 0.008;
+      if (this.scenePhase === 'ready' || this.scenePhase === 'ready-quiet') {
+        this.setState('portal-ready');
+        this.showOnly(1);
+        this.character.position.y = 0.24 + Math.sin(elapsed * 2.2) * 0.012;
+        this.character.rotation.z = -0.012;
+      } else {
+        this.updateBlink(elapsed % 2);
+        this.character.position.y = 0.22 + Math.sin(elapsed * 1.6) * 0.018;
+        this.character.rotation.z = this.scenePhase === 'heating'
+          ? -0.008 - this.worldHeat * 0.008
+          : Math.sin(elapsed * 0.75) * 0.008;
+      }
       return;
     }
 
@@ -195,6 +207,20 @@ export class ApprovedMascot {
     }
 
     this.character.rotation.z = time < 1.12 ? -Math.sin(Math.min(1, time / 0.94) * Math.PI) * 0.018 : 0;
+  }
+
+  setWorldHeat(heat: number): void {
+    this.worldHeat = THREE.MathUtils.clamp(heat, 0, 1);
+    const warm = new THREE.Color(1, 1 - this.worldHeat * 0.065, 1 - this.worldHeat * 0.13);
+    this.group.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const material = object.material;
+      if (material instanceof THREE.MeshBasicMaterial) material.color.copy(warm);
+    });
+  }
+
+  setScenePhase(phase: ScenePhase): void {
+    this.scenePhase = phase;
   }
 
   private updateBlink(cycle: number): void {

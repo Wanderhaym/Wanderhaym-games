@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { AudioBands } from '../audio/CinematicAudio';
 
 interface PendingDestination {
   parent: THREE.Group;
@@ -16,6 +17,7 @@ const coreShader = {
     uPointer: { value: new THREE.Vector2() },
     uImpact: { value: 0 },
     uPortalHeat: { value: 0 },
+    uAudio: { value: new THREE.Vector4() },
   },
   vertexShader: `
     uniform float uTime;
@@ -23,6 +25,7 @@ const coreShader = {
     uniform float uEnergy;
     uniform float uImpact;
     uniform float uPortalHeat;
+    uniform vec4 uAudio;
     uniform vec2 uPointer;
     varying vec3 vNormal;
     varying vec3 vWorldPosition;
@@ -36,6 +39,7 @@ const coreShader = {
       float heatPulse = sin(length(position) * 10.0 - uTime * (4.0 + uPortalHeat * 5.0)) * uPortalHeat;
       float displacement = (waveA * 0.045 + waveB * 0.035 + pointerWave * 0.018
         + impactWave * 0.075 + heatPulse * 0.038) * uEnergy;
+      displacement += sin(position.y * 8.0 - uTime * 3.0) * uAudio.x * 0.024;
       vec3 transformed = position + normal * displacement;
       vec4 world = modelMatrix * vec4(transformed, 1.0);
       vWorldPosition = world.xyz;
@@ -49,6 +53,7 @@ const coreShader = {
     uniform float uEnergy;
     uniform float uImpact;
     uniform float uPortalHeat;
+    uniform vec4 uAudio;
     varying vec3 vNormal;
     varying vec3 vWorldPosition;
     varying float vWave;
@@ -65,6 +70,7 @@ const coreShader = {
       color += vec3(1.0, 0.19, 0.015) * uImpact * (0.55 + vWave * 1.25);
       color += mix(vec3(1.0, 0.12, 0.005), vec3(1.0, 0.82, 0.18), vWave) * uPortalHeat * (0.38 + fresnel * 0.72);
       color += uAccent * fresnel * uEnergy * 0.4;
+      color += mix(uAccent, vec3(1.0), 0.42) * (uAudio.x * fresnel * 0.16 + uAudio.w * 0.045);
       gl_FragColor = vec4(color, 1.0);
     }
   `,
@@ -127,6 +133,7 @@ const destinationPreviewShader = {
     uPointer: { value: new THREE.Vector2(0.5, 0.5) },
     uMode: { value: 0 },
     uWindowRadius: { value: 0.44 },
+    uAssembly: { value: 0 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -144,10 +151,15 @@ const destinationPreviewShader = {
     uniform vec2 uPointer;
     uniform float uMode;
     uniform float uWindowRadius;
+    uniform float uAssembly;
     varying vec2 vUv;
 
     float hash(vec2 point) {
       return fract(sin(dot(point, vec2(127.1, 311.7))) * 43758.5453);
+    }
+
+    float ellipseField(vec2 point, vec2 center, vec2 radius) {
+      return 1.0 - length((point - center) / radius);
     }
 
     void main() {
@@ -270,6 +282,22 @@ const destinationPreviewShader = {
         + bondHole * bondMode + shardHole * shardsMode + decisionHole * decisionMode
         + smokeHole * smokeMode + truthHole * truthMode;
 
+      // The destination is not another circular lens: it grows from the
+      // Wanderhaym paw. One pad and four toes share one continuous image.
+      vec2 pawPoint = local / max(0.001, windowRadius);
+      float padField = ellipseField(pawPoint, vec2(0.0, -0.25), vec2(0.50, 0.38));
+      float toeOne = ellipseField(pawPoint, vec2(-0.50, 0.25), vec2(0.15, 0.22));
+      float toeTwo = ellipseField(pawPoint, vec2(-0.18, 0.48), vec2(0.15, 0.23));
+      float toeThree = ellipseField(pawPoint, vec2(0.18, 0.48), vec2(0.15, 0.23));
+      float toeFour = ellipseField(pawPoint, vec2(0.50, 0.25), vec2(0.15, 0.22));
+      float pawField = mix(-2.0, padField, smoothstep(0.02, 0.24, uAssembly));
+      pawField = max(pawField, mix(-2.0, toeOne, smoothstep(0.20, 0.42, uAssembly)));
+      pawField = max(pawField, mix(-2.0, toeTwo, smoothstep(0.38, 0.60, uAssembly)));
+      pawField = max(pawField, mix(-2.0, toeThree, smoothstep(0.56, 0.78, uAssembly)));
+      pawField = max(pawField, mix(-2.0, toeFour, smoothstep(0.74, 0.96, uAssembly)));
+      float pawAperture = smoothstep(-0.035, 0.02, pawField);
+      aperture = pawAperture * uReveal;
+
       float vignette = 1.0 - smoothstep(windowRadius * 0.28, windowRadius, distanceToPointer);
       float organicRim = (1.0 - smoothstep(0.0, 0.018 * effectScale, abs(distanceToPointer - windowRadius - edgeNoise))) * organicMode;
       float gridRim = (1.0 - smoothstep(0.0, 0.03 * effectScale, abs(distanceToPointer - windowRadius))) * gridMode;
@@ -290,6 +318,7 @@ const destinationPreviewShader = {
       float truthRim = (1.0 - smoothstep(0.0, 0.026 * effectScale, abs(truthDistance - windowRadius))) * truthMode;
       float rim = organicRim + gridRim + waveformRim + radarRim + chainRim
         + bondRim + shardRim + decisionRim + smokeRim + truthRim;
+      rim = (1.0 - smoothstep(0.0, 0.075, abs(pawField))) * uReveal;
       vec3 color = image * (0.64 + vignette * 0.18);
       color = mix(color, color * uAccent * 1.18, (1.0 - uReveal) * 0.08);
       color += uAccent * rim * (0.08 + uReveal * 0.18);
@@ -352,7 +381,7 @@ export class CoreArtifact {
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   });
-  private readonly previewRim: THREE.Mesh;
+  private readonly previewRim = new THREE.Group();
   private readonly readyHaloMaterial = new THREE.MeshBasicMaterial({
     color: 0xffb24f,
     transparent: true,
@@ -396,13 +425,33 @@ export class CoreArtifact {
   private previewFocusTarget = 0;
   private portalHeat = 0;
   private portalReady = false;
+  private cinematicActivity = 1;
+  private cinematicLight = 1;
+  private portalFocus = 0;
+  private secretProgress = 0;
   private readyPulse = 0;
   private previewReveal = 0;
   private previewRadius = 0.035;
-  private previewRadiusMax = 0.44;
+  private previewRadiusMax = 0.56;
   private readonly previewPointer = new THREE.Vector2(0.5, 0.5);
   private readonly previewPointerTarget = new THREE.Vector2(0.5, 0.5);
   private readonly layoutPosition = new THREE.Vector3(-0.25, 0.12, -0.2);
+  private portalReadyAge = 10;
+  private portalAssembly = 0;
+  private portalLaunchAge = 10;
+  private audioBass = 0;
+  private audioMids = 0;
+  private audioHighs = 0;
+  private audioOverall = 0;
+  private readonly traceMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffb24f,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
+  private readonly journeyTraces = new THREE.Group();
 
   constructor() {
     this.group.name = 'Wanderhaym procedural world core';
@@ -450,16 +499,36 @@ export class CoreArtifact {
     this.fire.name = 'GPU fire mantle';
     this.fire.frustumCulled = false;
 
-    this.preview = new THREE.Mesh(new THREE.CircleGeometry(1.01, 72), this.previewMaterial);
+    this.preview = new THREE.Mesh(new THREE.PlaneGeometry(2.05, 2.05), this.previewMaterial);
     this.preview.name = 'Destination world lens';
     this.preview.position.z = 1.075;
     this.preview.renderOrder = 160;
     this.preview.visible = false;
-    this.previewRim = new THREE.Mesh(new THREE.TorusGeometry(1.035, 0.025, 8, 96), this.previewRimMaterial);
-    this.previewRim.name = 'Destination lens fire rim';
+    this.previewRim.name = 'Destination paw fire rim';
     this.previewRim.position.z = 1.082;
     this.previewRim.renderOrder = 161;
     this.previewRim.visible = false;
+    const pawRimParts = [
+      { x: 0, y: -0.25, radius: 0.5, sx: 1, sy: 0.76 },
+      { x: -0.5, y: 0.25, radius: 0.15, sx: 1, sy: 1.47 },
+      { x: -0.18, y: 0.48, radius: 0.15, sx: 1, sy: 1.53 },
+      { x: 0.18, y: 0.48, radius: 0.15, sx: 1, sy: 1.53 },
+      { x: 0.5, y: 0.25, radius: 0.15, sx: 1, sy: 1.47 },
+    ];
+    pawRimParts.forEach((part) => {
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(part.radius, 0.032, 7, 56), this.previewRimMaterial);
+      rim.position.set(part.x, part.y, 0);
+      rim.scale.set(part.sx, part.sy, 1);
+      rim.renderOrder = 161;
+      this.previewRim.add(rim);
+    });
+    // The pad grows for the whole charge. The four toes line up with the four
+    // normal hits: one new toe is clearly readable after every quarter.
+    const assemblyThresholds = [0, 0.08, 0.32, 0.56, 0.8];
+    this.previewRim.children.forEach((part, index) => {
+      part.userData.baseScale = part.scale.clone();
+      part.userData.assemblyThreshold = assemblyThresholds[index];
+    });
     this.readyHalo = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.042, 8, 112), this.readyHaloMaterial);
     this.readyHalo.name = 'Stable heated portal halo';
     this.readyHalo.position.z = 1.087;
@@ -485,6 +554,25 @@ export class CoreArtifact {
     );
     this.interactionMesh.name = 'Core interaction volume';
     this.interactionMesh.userData.artifactAction = 'next';
+    this.journeyTraces.name = 'Hidden paw traces of previous journeys';
+    for (let markIndex = 0; markIndex < 7; markIndex += 1) {
+      const mark = new THREE.Group();
+      const pad = new THREE.Mesh(new THREE.CircleGeometry(0.1, 18), this.traceMaterial);
+      pad.scale.set(1.2, 0.82, 1);
+      mark.add(pad);
+      [[-0.1, 0.11], [-0.035, 0.16], [0.035, 0.16], [0.1, 0.11]].forEach(([x, y]) => {
+        const toe = new THREE.Mesh(new THREE.CircleGeometry(0.035, 14), this.traceMaterial);
+        toe.position.set(x, y, 0.002);
+        toe.scale.y = 1.25;
+        mark.add(toe);
+      });
+      const angle = -1.2 + markIndex * 0.4;
+      mark.position.set(Math.cos(angle) * (1.8 + (markIndex % 2) * 0.34), -2.18, Math.sin(angle) * 0.82 + 0.45);
+      mark.rotation.set(-Math.PI / 2, 0, angle + Math.PI / 2);
+      mark.scale.setScalar(0.72 + (markIndex % 3) * 0.1);
+      this.journeyTraces.add(mark);
+    }
+    this.journeyTraces.visible = false;
     this.group.add(
       this.light,
       this.shockwave,
@@ -497,6 +585,7 @@ export class CoreArtifact {
       this.readyHalo,
       this.preview,
       this.previewRim,
+      this.journeyTraces,
       this.interactionMesh,
     );
     this.setAccent(new THREE.Color(0x82ffd0));
@@ -511,6 +600,10 @@ export class CoreArtifact {
 
   beginJourney(parent: THREE.Group, index: number, accent: THREE.Color): void {
     this.pending = { parent, index, accent: accent.clone(), relocated: false };
+  }
+
+  beginPortalTravel(): void {
+    this.portalLaunchAge = 0;
   }
 
   impact(strength = 1): void {
@@ -549,8 +642,8 @@ export class CoreArtifact {
   setDestinationPreview(texture: THREE.Texture, accent: THREE.Color): void {
     this.previewMaterial.uniforms.tPreview.value = texture;
     this.previewMaterial.uniforms.uAccent.value.copy(accent);
-    // The heated core always opens one clean circular portal. Unique reveal
-    // shapes belong to the interactive game cards only.
+    // The destination texture is revealed through the shared paw aperture.
+    // Individual game cards keep their own authored reveal treatment.
     this.previewMaterial.uniforms.uMode.value = 0;
     this.previewRimMaterial.color.copy(accent).lerp(new THREE.Color(0xff7818), 0.46);
     this.preview.visible = true;
@@ -563,24 +656,50 @@ export class CoreArtifact {
   }
 
   setPortalState(heat: number, ready: boolean): void {
-    if (ready && !this.portalReady) this.readyPulse = 1;
+    if (ready && !this.portalReady) {
+      this.readyPulse = 1;
+      this.portalReadyAge = 0;
+    }
     this.portalHeat = THREE.MathUtils.clamp(heat, 0, 1);
     this.portalReady = ready;
+  }
+
+  setCinematicDirection(activity: number, light: number, portalFocus: number): void {
+    this.cinematicActivity = THREE.MathUtils.clamp(activity, 0.16, 1.4);
+    this.cinematicLight = THREE.MathUtils.clamp(light, 0.2, 1.4);
+    this.portalFocus = THREE.MathUtils.clamp(portalFocus, 0, 1);
+  }
+
+  setAudioEnergy(bands: AudioBands): void {
+    this.audioBass = THREE.MathUtils.clamp(bands.bass, 0, 1);
+    this.audioMids = THREE.MathUtils.clamp(bands.mids, 0, 1);
+    this.audioHighs = THREE.MathUtils.clamp(bands.highs, 0, 1);
+    this.audioOverall = THREE.MathUtils.clamp(bands.overall, 0, 1);
+  }
+
+  setSecretProgress(progress: number): void {
+    this.secretProgress = THREE.MathUtils.clamp(progress, 0, 1);
+    this.journeyTraces.visible = this.secretProgress > 0.08;
+    this.traceMaterial.opacity = 0.018 + this.secretProgress * 0.11;
   }
 
   setLayout(mobile: boolean, compactLandscape = false): void {
     const centeredMobile = mobile && !compactLandscape;
     this.layoutPosition.set(
       centeredMobile ? 0 : mobile ? -0.98 : -0.25,
-      mobile ? 0.08 : 0.12,
-      mobile ? -1.05 : -0.2,
+      centeredMobile ? 0.16 : mobile ? 0.08 : 0.12,
+      centeredMobile ? -0.86 : mobile ? -1.05 : -0.2,
     );
-    this.baseScale = centeredMobile ? 0.79 : mobile ? 0.72 : 1;
-    this.previewRadiusMax = 0.47;
+    // The core is the visual identity of Wanderhaym. Portrait screens used to
+    // shrink it so much that the destination inside the paw became unreadable.
+    this.baseScale = centeredMobile ? 1.04 : mobile ? 0.82 : 1.08;
+    this.previewRadiusMax = centeredMobile ? 0.59 : mobile ? 0.55 : 0.56;
     this.group.position.copy(this.layoutPosition);
   }
 
   update(delta: number, elapsed: number, journeyProgress: number, journeyIntensity: number, pointer: THREE.Vector2): void {
+    this.portalReadyAge += delta;
+    this.portalLaunchAge += delta;
     if (this.pending) {
       if (!this.pending.relocated && journeyProgress >= 0.42) {
         this.pending.parent.add(this.group);
@@ -598,7 +717,8 @@ export class CoreArtifact {
       this.visualScale = THREE.MathUtils.lerp(this.visualScale, 1, 1 - Math.exp(-delta * 8));
     }
 
-    const energy = 0.72 + journeyIntensity * 1.65 + this.portalHeat * 0.92 + Math.sin(elapsed * 1.4) * 0.08;
+    const energy = (0.72 + journeyIntensity * 1.65 + this.portalHeat * 0.92 + Math.sin(elapsed * 1.4) * 0.08)
+      * this.cinematicActivity;
     this.impactEnergy = Math.max(0, this.impactEnergy - delta * 1.35);
     this.shockwaveAge += delta;
     const shockDuration = 0.58 + this.impactStrength * 0.18;
@@ -625,15 +745,26 @@ export class CoreArtifact {
     this.coreMaterial.uniforms.uImpact.value = this.impactEnergy;
     this.coreMaterial.uniforms.uPortalHeat.value = this.portalHeat;
     this.coreMaterial.uniforms.uPointer.value.copy(pointer);
+    this.coreMaterial.uniforms.uAudio.value.set(this.audioBass, this.audioMids, this.audioHighs, this.audioOverall);
     this.fireMaterial.uniforms.uTime.value = elapsed;
     this.fireMaterial.uniforms.uImpact.value = this.impactEnergy;
-    this.fireMaterial.uniforms.uPortalHeat.value = this.portalHeat;
+    this.fireMaterial.uniforms.uPortalHeat.value = this.portalHeat * (this.portalReady ? 0.58 : 1);
     this.previewFocus = THREE.MathUtils.lerp(
       this.previewFocus,
       this.previewFocusTarget,
       1 - Math.exp(-delta * (this.previewFocusTarget > this.previewFocus ? 8.5 : 4.2)),
     );
     this.previewMaterial.uniforms.uTime.value = elapsed;
+    // Portal assembly is the progress indicator itself: the pad and every toe
+    // receive an even part of the complete heating range. Nothing waits for
+    // the last hit and then pops in as a group.
+    const assemblyTarget = this.portalHeat;
+    this.portalAssembly = THREE.MathUtils.lerp(
+      this.portalAssembly,
+      assemblyTarget,
+      1 - Math.exp(-delta * (assemblyTarget > this.portalAssembly ? 9.5 : 3)),
+    );
+    this.previewMaterial.uniforms.uAssembly.value = this.portalAssembly;
     const aperture = THREE.MathUtils.smoothstep(this.portalHeat, 0.12, 0.9);
     this.previewReveal = THREE.MathUtils.lerp(
       this.previewReveal,
@@ -651,23 +782,55 @@ export class CoreArtifact {
     this.previewMaterial.uniforms.uImpact.value = this.impactEnergy;
     this.previewPointer.lerp(this.previewPointerTarget, 1 - Math.exp(-delta * 20));
     this.previewMaterial.uniforms.uPointer.value.copy(this.previewPointer);
-    this.previewRimMaterial.opacity = this.previewReveal * (this.portalReady ? 0.56 : 0.18 + this.portalHeat * 0.2);
-    const rimScale = THREE.MathUtils.clamp(this.previewRadius / 0.47, 0.08, 1);
-    this.previewRim.scale.setScalar(rimScale);
+    this.previewRimMaterial.opacity = this.portalReady
+      ? 0.72
+      : this.previewReveal * 0.28 + this.portalAssembly * 0.66;
+    // Let the progress silhouette lead the image aperture. Otherwise early
+    // toes technically exist but remain hidden inside a very small window.
+    const rimScale = THREE.MathUtils.clamp(
+      Math.max(this.previewRadius / 0.47, 0.42 + this.portalAssembly * 0.58),
+      0.08,
+      1,
+    );
+    const launchProgress = THREE.MathUtils.clamp(this.portalLaunchAge / 0.7, 0, 1);
+    const launchEnvelope = this.portalLaunchAge < 0.7 ? Math.sin(launchProgress * Math.PI) : 0;
+    const launchScale = 1 + launchProgress * 7.5;
+    this.previewRim.scale.setScalar(rimScale * (this.portalLaunchAge < 0.7 ? launchScale : 1));
+    this.preview.scale.setScalar(this.portalLaunchAge < 0.7 ? launchScale : 1);
+    if (this.portalLaunchAge < 0.7) {
+      this.preview.visible = true;
+      this.previewRim.visible = true;
+      this.previewMaterial.uniforms.uReveal.value = Math.max(this.previewReveal, 1 - launchProgress * 0.82);
+      this.previewMaterial.uniforms.uAssembly.value = 1;
+      this.previewRimMaterial.opacity = (1 - launchProgress) * 0.95;
+    }
+    this.previewRim.children.forEach((part, index) => {
+      const threshold = part.userData.assemblyThreshold as number;
+      const staged = THREE.MathUtils.smoothstep(this.portalAssembly, threshold, Math.min(1, threshold + 0.2));
+      const base = part.userData.baseScale as THREE.Vector3;
+      part.scale.copy(base).multiplyScalar(Math.max(0.001, staged));
+      part.visible = staged > 0.01 || launchEnvelope > 0.01;
+      part.rotation.z = launchEnvelope > 0.01 ? (index - 2) * launchEnvelope * 0.16 : 0;
+    });
     this.readyPulse = Math.max(0, this.readyPulse - delta * 0.72);
-    const readyBreath = this.portalReady ? 0.5 + Math.sin(elapsed * 4.2) * 0.1 : 0;
+    const readyBreath = this.portalReady ? 0.16 + Math.sin(elapsed * 4.2) * 0.035 : 0;
     this.readyHalo.visible = this.portalReady || this.readyPulse > 0.01;
     this.readyHaloMaterial.opacity = readyBreath + this.readyPulse * 0.38;
     this.readyHalo.scale.setScalar(1 + Math.sin(elapsed * 3.4) * 0.035 + this.readyPulse * 0.42);
     this.readyHalo.rotation.z -= delta * (this.portalReady ? 0.32 : 0.12);
-    this.preview.visible = this.previewReveal > 0.004;
-    this.previewRim.visible = this.previewReveal > 0.01;
-    this.ringMaterial.emissiveIntensity = 0.82 + energy * 0.58 + this.impactEnergy * 1.45 + this.portalHeat * 1.4;
-    this.shardMaterial.emissiveIntensity = 0.27 + energy * 0.24 + this.impactEnergy * 0.72 + this.portalHeat * 0.62;
+    this.preview.visible = this.previewReveal > 0.004 || this.portalLaunchAge < 0.7;
+    this.previewRim.visible = this.previewReveal > 0.01 || this.portalLaunchAge < 0.7;
+    this.ringMaterial.transparent = true;
+    this.ringMaterial.opacity = 1 - this.portalAssembly * 0.28;
+    const readyCalm = this.portalReady ? 0.76 : 1;
+    this.ringMaterial.emissiveIntensity = (0.82 + energy * 0.58 + this.impactEnergy * 1.45 + this.portalHeat * 1.2) * readyCalm;
+    this.shardMaterial.emissiveIntensity = 0.27 + energy * 0.24 + this.impactEnergy * 0.72
+      + this.portalHeat * 0.62 + this.secretProgress * 0.22;
     this.light.color.copy(this.accent).lerp(this.fireColor, this.impactEnergy * 0.72);
-    this.light.intensity = 3.7 + energy * 2.05 + this.impactEnergy * 6.2 + this.portalHeat * 2.2;
+    this.light.intensity = (3.7 + energy * 2.05 + this.impactEnergy * 6.2 + this.portalHeat * 1.7)
+      * this.cinematicLight * readyCalm;
 
-    const pulse = 1 + Math.sin(elapsed * 1.8 + this.mode) * 0.035;
+    const pulse = 1 + Math.sin(elapsed * 1.8 + this.mode) * 0.035 + this.audioBass * 0.045;
     this.group.scale.setScalar(this.baseScale * this.visualScale * pulse);
     this.core.rotation.y += delta * (0.19 + this.mode * 0.008);
     this.core.rotation.x = Math.sin(elapsed * 0.31) * 0.14;
@@ -676,13 +839,18 @@ export class CoreArtifact {
     this.rings.children.forEach((ring, index) => {
       ring.rotation.z += delta * (index % 2 ? -0.24 : 0.2) * (1 + journeyIntensity * 2.5 + this.portalHeat * 2.8);
       ring.rotation.x += delta * 0.035 * (index + 1);
-      ring.scale.setScalar(1 + this.portalHeat * 0.055 + (this.portalReady ? 0.035 : 0));
+      ring.scale.setScalar((1 + this.portalHeat * 0.055 + this.portalFocus * 0.085 + this.audioMids * 0.028) * (1 - this.portalAssembly * 0.16));
     });
-    this.shards.rotation.y -= delta * (0.12 + journeyIntensity * 0.35);
+    this.shards.rotation.y -= delta * (0.12 + journeyIntensity * 0.35 + this.secretProgress * 0.12);
     this.shards.rotation.z = Math.sin(elapsed * 0.24) * 0.16;
+    this.shards.children.forEach((shard, index) => {
+      const clue = index < Math.floor(this.secretProgress * this.shards.children.length);
+      shard.scale.setScalar((0.65 + (index % 4) * 0.16) * (clue ? 1.15 + Math.sin(elapsed * 1.8 + index) * 0.08 : 1));
+    });
     this.fire.rotation.y += delta * (0.11 + this.impactEnergy * 0.75);
     this.preview.rotation.z = Math.sin(elapsed * 0.38 + this.mode) * 0.012;
-    this.previewRim.rotation.z -= delta * (0.08 + this.previewFocus * 0.08 + this.portalHeat * 0.34);
+    this.previewRim.rotation.z = Math.sin(elapsed * 0.62) * 0.018;
+    this.journeyTraces.rotation.y = Math.sin(elapsed * 0.13) * 0.035;
   }
 
   getWorldPosition(target: THREE.Vector3): THREE.Vector3 {
@@ -702,6 +870,7 @@ export class CoreArtifact {
     this.fireMaterial.dispose();
     this.previewMaterial.dispose();
     this.previewRimMaterial.dispose();
+    this.traceMaterial.dispose();
     this.readyHaloMaterial.dispose();
     this.shockwaveMaterial.dispose();
     this.depthWaveMaterial.dispose();

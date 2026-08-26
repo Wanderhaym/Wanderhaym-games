@@ -52,6 +52,7 @@ export class CameraJourney {
   private route: JourneyRoute | 'none' = 'none';
   private routeProfile: TransitionProfile | null = null;
   private restFov: number;
+  private idleClock = 0;
 
   constructor(camera: THREE.PerspectiveCamera, initial: CameraAnchor) {
     this.camera = camera;
@@ -147,6 +148,13 @@ export class CameraJourney {
       this.controlB.copy(this.endPosition).addScaledVector(endInward, dive * 1.28).addScaledVector(endTangent, 3.2);
       this.controlA.y -= 2.8;
       this.controlB.y += 1.4;
+    } else if (profile.route === 'relic-forge') {
+      this.controlA.copy(this.startPosition).lerp(this.endPosition, 0.22)
+        .addScaledVector(startInward, dive * 0.62).addScaledVector(startTangent, 3.8);
+      this.controlB.copy(this.startPosition).lerp(this.endPosition, 0.78)
+        .addScaledVector(endInward, dive * 0.72).addScaledVector(endTangent, -3.4);
+      this.controlA.y += 5.8;
+      this.controlB.y -= 4.6;
     } else {
       this.controlA.copy(this.startPosition).addScaledVector(startInward, dive);
       this.controlB.copy(this.endPosition).addScaledVector(endInward, dive);
@@ -174,6 +182,9 @@ export class CameraJourney {
     } else if (profile.route === 'recoil') {
       this.targetControlA.copy(this.startTarget).addScaledVector(startOutward, 3.5);
       this.targetControlB.set(-this.direction * 2.8, 0.2, 0.6);
+    } else if (profile.route === 'relic-forge') {
+      this.targetControlA.set(this.direction * 1.8, 2.2, -1.8);
+      this.targetControlB.set(-this.direction * 1.4, -1.6, 1.2);
     } else {
       this.targetControlA.set(0, this.direction * (profile.route === 'spiral' ? 1.8 : 0.7), 0);
       this.targetControlB.set(0, -this.direction * (profile.route === 'dive' ? 1.2 : 0.35), 0);
@@ -209,7 +220,7 @@ export class CameraJourney {
     this.traveling = true;
   }
 
-  update(delta: number, pointer: THREE.Vector2, mobile: boolean): JourneyFrame {
+  update(delta: number, pointer: THREE.Vector2, mobile: boolean, cameraPush = 0, idleMotion = 0): JourneyFrame {
     let progress = 1;
     if (this.traveling) {
       this.elapsed = Math.min(this.duration, this.elapsed + delta);
@@ -235,13 +246,18 @@ export class CameraJourney {
     const frameMode = this.traveling ? this.mode : 'idle';
     const frameRoute = this.traveling ? this.route : 'none';
     const intensity = this.traveling ? Math.sin(progress * Math.PI) : 0;
+    this.idleClock += delta;
     this.forward.subVectors(this.baseTarget, this.basePosition).normalize();
     this.right.crossVectors(this.forward, WORLD_UP).normalize();
     const horizontal = pointer.x * (mobile ? 0.11 : 0.34);
     const vertical = -pointer.y * (mobile ? 0.08 : 0.22);
     this.parallax.copy(this.right).multiplyScalar(horizontal).addScaledVector(WORLD_UP, vertical);
+    if (!this.traveling && idleMotion > 0) {
+      this.parallax.addScaledVector(this.right, Math.sin(this.idleClock * 0.16) * (mobile ? 0.018 : 0.065) * idleMotion);
+      this.parallax.addScaledVector(WORLD_UP, Math.sin(this.idleClock * 0.11 + 0.8) * (mobile ? 0.012 : 0.035) * idleMotion);
+    }
 
-    this.camera.position.copy(this.basePosition).add(this.parallax);
+    this.camera.position.copy(this.basePosition).add(this.parallax).addScaledVector(this.forward, cameraPush);
     if (this.traveling && this.mode === 'space' && this.routeProfile) {
       const shakeEnvelope = Math.pow(Math.sin(progress * Math.PI), 1.4) * this.routeProfile.cameraShake;
       this.cameraShake.copy(this.right).multiplyScalar(Math.sin(this.elapsed * 31) * shakeEnvelope);
@@ -258,6 +274,8 @@ export class CameraJourney {
           ? Math.sin(progress * Math.PI) * this.direction
           : this.route === 'recoil'
             ? Math.cos(progress * Math.PI * 3) * (1 - progress) * this.direction
+            : this.route === 'relic-forge'
+              ? Math.sin(progress * Math.PI * 6) * 0.34 * this.direction
             : this.direction;
     this.camera.up.set(rollDirection * intensity * routeRoll, 1, 0).normalize();
     this.camera.lookAt(this.target);
@@ -329,6 +347,10 @@ export class CameraJourney {
       const recoil = Math.sin(progress * Math.PI * 5) * Math.pow(1 - progress, 1.4);
       this.routeOffset.addScaledVector(this.travelSide, recoil * 2.2 * this.direction);
       this.routeOffset.y = -Math.sin(progress * Math.PI * 3) * envelope * 1.15;
+    } else if (this.route === 'relic-forge') {
+      const stepped = Math.sin(progress * Math.PI * 12) * envelope;
+      this.routeOffset.addScaledVector(this.travelSide, stepped * 0.72 * this.direction);
+      this.routeOffset.y = Math.sin(progress * Math.PI * 6) * envelope * 0.68;
     }
     this.basePosition.add(this.routeOffset);
   }

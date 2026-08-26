@@ -1,9 +1,11 @@
 import musicUrl from '../../assets/music.mp3?url';
 import hammerUrl from '../../assets/mascot/hammer-hit.wav?url';
-import { games } from '../data/games';
+import { allGames, games } from '../data/games';
 import { detectQuality } from './quality';
 import { GameWorld } from '../world/GameWorld';
 import { TeleportCounter, type TeleportCounterState } from '../services/TeleportCounter';
+import { CinematicAudio } from '../audio/CinematicAudio';
+import { ForgeLoader } from '../ui/ForgeLoader';
 
 declare global {
   interface Window {
@@ -26,8 +28,7 @@ function required<T extends Element>(selector: string): T {
 export class Experience {
   private readonly canvas = required<HTMLCanvasElement>('#world');
   private readonly loader = required<HTMLElement>('#loader');
-  private readonly loaderBar = required<HTMLElement>('#loaderBar');
-  private readonly loaderValue = required<HTMLElement>('#loaderValue');
+  private readonly forgeLoader = new ForgeLoader(this.loader);
   private readonly ui = required<HTMLElement>('#ui');
   private readonly title = required<HTMLElement>('#gameTitle');
   private readonly description = required<HTMLElement>('#gameDescription');
@@ -35,6 +36,7 @@ export class Experience {
   private readonly progress = required<HTMLElement>('#progress');
   private readonly accessibleGames = required<HTMLElement>('#accessibleGames');
   private readonly soundButton = required<HTMLButtonElement>('#soundButton');
+  private readonly quietButton = required<HTMLButtonElement>('#quietButton');
   private readonly portalHud = required<HTMLElement>('#portalHud');
   private readonly portalState = required<HTMLElement>('#portalState');
   private readonly portalHeatValue = required<HTMLElement>('#portalHeatValue');
@@ -42,9 +44,12 @@ export class Experience {
   private readonly portalDestination = required<HTMLElement>('#portalDestination');
   private readonly teleportCounterElement = required<HTMLElement>('#teleportCounter');
   private readonly teleportCounterValue = required<HTMLElement>('#teleportCounterValue');
+  private readonly interactionCoach = required<HTMLElement>('#interactionCoach');
   private readonly music = required<HTMLAudioElement>('#music');
+  private readonly loaderDemo = new URLSearchParams(location.search).has('loader-demo');
   private readonly hammerAudio = new Audio(hammerUrl);
   private readonly teleportCounter = new TeleportCounter();
+  private readonly cinematicAudio = new CinematicAudio();
   private readonly world: GameWorld;
   private teleportTotal: number | null = null;
   private activeIndex = 0;
@@ -56,28 +61,65 @@ export class Experience {
   private audioUnlocked = false;
   private audioStarting = false;
   private musicManuallyDisabled = false;
+  private previousPortalReady = false;
+  private portalReadySoundTimer: number | null = null;
+  private tutorialComplete = localStorage.getItem('wanderhaym.portalTutorial.v1') === 'complete';
+  private quietMode = false;
 
   constructor() {
     this.music.src = musicUrl;
     this.music.volume = 0.16;
-    this.music.preload = 'auto';
+    // The soundtrack is not needed to render the loader and browsers cannot
+    // play it before a user gesture anyway. Fetch it only when audio unlocks.
+    this.music.preload = 'none';
     this.music.setAttribute('playsinline', '');
-    this.music.load();
+    this.cinematicAudio.attachMediaElement(this.music);
     this.hammerAudio.volume = 0.065;
     this.hammerAudio.preload = 'auto';
 
-    this.world = new GameWorld(this.canvas, games, detectQuality(), {
-      onProgress: (value) => this.setLoading(value),
+    this.world = new GameWorld(this.canvas, allGames, detectQuality(), {
+      onProgress: (value) => this.forgeLoader.setProgress(this.loaderDemo ? value * 0.62 : value),
       onSelect: (index) => this.select(index),
       onJourney: (index) => {
         const previous = this.activeIndex;
+        this.cinematicAudio.journey(index);
         this.select(index, 'space');
         if (this.activeIndex !== previous) void this.teleportCounter.recordTeleport();
+        if (!this.tutorialComplete) {
+          this.tutorialComplete = true;
+          localStorage.setItem('wanderhaym.portalTutorial.v1', 'complete');
+          this.interactionCoach.dataset.state = 'done';
+        }
       },
       onActivate: (index) => this.openGame(index),
-      onImpact: () => this.playImpact(),
+      onImpact: (power) => this.playImpact(power),
       onPortalState: (state) => this.renderPortalState(state),
+      onSceneDirection: (direction) => {
+        this.cinematicAudio.update(direction);
+        this.world.setAudioEnergy(this.cinematicAudio.getBands());
+        const targetMusicVolume = direction.phase === 'ready-quiet'
+          ? 0.025
+          : direction.phase === 'travel'
+            ? 0.1
+            : direction.phase === 'arrival'
+              ? 0.13
+              : 0.16;
+        this.music.volume += (targetMusicVolume - this.music.volume) * 0.085;
+      },
+      onArrival: (index) => this.cinematicAudio.arrival(index),
+      onSecretHint: (level) => {
+        this.cinematicAudio.secretHint(level);
+        this.showSecretHint(level);
+      },
     });
+    try {
+      this.quietMode = localStorage.getItem('wanderhaym.effects.v1') === 'quiet'
+        || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch {
+      this.quietMode = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+    this.world.setQuietMode(this.quietMode);
+    this.updateQuietButton();
 
     this.teleportCounter.subscribe((state) => this.renderTeleportCounter(state));
 
@@ -95,14 +137,17 @@ export class Experience {
 
   async start(): Promise<void> {
     try {
+      // The loader frames decode alongside the WebGL world. They share the
+      // same optimized URLs, so the browser downloads each texture only once
+      // without delaying world initialization behind a separate preload gate.
       await this.world.initialize();
-      this.setLoading(1);
-      window.setTimeout(() => this.loader.classList.add('is-hidden'), 420);
+      if (this.loaderDemo) await new Promise<void>((resolve) => window.setTimeout(resolve, 6500));
+      this.forgeLoader.setProgress(1);
+      await this.forgeLoader.complete();
+      this.loader.classList.add('is-hidden');
     } catch (error) {
       console.error('Could not initialize Wanderhaym 3D', error);
-      this.loader.querySelector('h1')!.textContent = 'Не удалось запустить 3D';
-      this.loaderValue.textContent = 'Обнови страницу или включи WebGL';
-      this.loader.classList.add('has-error');
+      this.forgeLoader.fail('Кузня остановлена', 'Обнови страницу или включи WebGL');
     }
   }
 
@@ -132,6 +177,17 @@ export class Experience {
       event.stopPropagation();
       this.toggleMusic();
     });
+    this.quietButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.quietMode = !this.quietMode;
+      this.world.setQuietMode(this.quietMode);
+      try {
+        localStorage.setItem('wanderhaym.effects.v1', this.quietMode ? 'quiet' : 'cinematic');
+      } catch {
+        // Session-only mode is still useful when storage is unavailable.
+      }
+      this.updateQuietButton();
+    });
 
     addEventListener('resize', () => this.world.resize(), { passive: true });
     addEventListener('pointermove', (event) => this.world.setPointer(event.clientX, event.clientY), { passive: true });
@@ -148,6 +204,9 @@ export class Experience {
       this.unlockAudio();
       if (event.key === 'ArrowRight' || event.key === 'ArrowDown') this.navigate(1);
       if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') this.navigate(-1);
+      if (event.key.toLowerCase() === 'q') {
+        this.quietButton.click();
+      }
       if (event.key === ' ' && event.target === document.body) {
         event.preventDefault();
         this.world.hit();
@@ -164,13 +223,16 @@ export class Experience {
 
     this.canvas.addEventListener('pointerdown', (event) => {
       this.touchStart = { x: event.clientX, y: event.clientY, time: performance.now() };
+      this.world.beginCoreHold(event.clientX, event.clientY);
     });
     this.canvas.addEventListener('pointerup', (event) => {
+      const coreHoldTriggered = this.world.endCoreHold();
       const start = this.touchStart;
       this.touchStart = null;
       if (!start) return;
       const dx = event.clientX - start.x;
       const dy = event.clientY - start.y;
+      if (coreHoldTriggered && Math.hypot(dx, dy) < 38) return;
       if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) {
         this.lastInteractiveTap = null;
         this.artifactPreviewIndex = null;
@@ -203,18 +265,24 @@ export class Experience {
       }
     });
     this.canvas.addEventListener('pointercancel', () => {
+      this.world.endCoreHold();
       this.touchStart = null;
       this.artifactPreviewIndex = null;
       this.world.clearPointerInteraction();
     });
     this.canvas.addEventListener('pointerleave', (event) => {
-      if (event.pointerType !== 'touch') this.world.clearPointerInteraction();
+      if (event.pointerType !== 'touch') {
+        this.world.endCoreHold();
+        this.world.clearPointerInteraction();
+      }
     });
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         this.music.pause();
+        this.cinematicAudio.setEnabled(false);
       } else if (this.musicEnabled) {
+        this.cinematicAudio.setEnabled(true);
         void this.music.play().catch(() => {
           this.musicEnabled = false;
           this.updateSoundButton();
@@ -224,7 +292,7 @@ export class Experience {
   }
 
   private select(index: number, transition: 'slide' | 'space' = 'slide'): void {
-    const normalized = (index + games.length) % games.length;
+    const normalized = (index + allGames.length) % allGames.length;
     if (normalized === this.activeIndex) return;
     this.artifactPreviewIndex = null;
     this.activeIndex = normalized;
@@ -234,16 +302,20 @@ export class Experience {
   }
 
   private navigate(direction: number): void {
-    this.select(this.activeIndex + direction);
+    const publicIndex = this.activeIndex >= games.length
+      ? (direction > 0 ? 0 : games.length - 1)
+      : (this.activeIndex + direction + games.length) % games.length;
+    this.select(publicIndex);
   }
 
   private openGame(index: number): void {
-    const game = games[index];
+    const game = allGames[index];
     window.open(`https://vk.com/app${game.appId}`, '_blank', 'noopener,noreferrer');
   }
 
   private renderGame(): void {
-    const game = games[this.activeIndex];
+    const game = allGames[this.activeIndex];
+    this.cinematicAudio.setWorld(game.profile);
     document.documentElement.style.setProperty('--accent', game.accent);
     this.title.textContent = game.title;
     this.description.textContent = game.description;
@@ -260,6 +332,17 @@ export class Experience {
     hits: number;
     requiredHits: number;
   }): void {
+    if (state.ready && !this.previousPortalReady) {
+      if (this.portalReadySoundTimer !== null) window.clearTimeout(this.portalReadySoundTimer);
+      this.portalReadySoundTimer = window.setTimeout(() => {
+        if (this.previousPortalReady) this.cinematicAudio.portalReady();
+        this.portalReadySoundTimer = null;
+      }, 280);
+    } else if (!state.ready && this.portalReadySoundTimer !== null) {
+      window.clearTimeout(this.portalReadySoundTimer);
+      this.portalReadySoundTimer = null;
+    }
+    this.previousPortalReady = state.ready;
     const percent = Math.round(state.heat * 100);
     this.portalHud.dataset.state = state.ready ? 'ready' : percent > 2 ? 'heating' : 'cold';
     this.portalState.textContent = state.ready
@@ -272,6 +355,25 @@ export class Experience {
     this.portalDestination.textContent = state.hits > 0
       ? `→ ${state.destination}`
       : 'СЛУЧАЙНЫЙ МИР';
+    if (!this.tutorialComplete) {
+      this.interactionCoach.dataset.state = state.ready ? 'ready' : state.hits > 0 ? 'heating' : 'cold';
+      this.interactionCoach.textContent = state.ready
+        ? 'Лапа-портал открыта — нажми на ядро'
+        : state.hits > 0
+          ? 'Продолжай ковать — лапа собирается'
+          : 'Нажми на ядро: кот начнёт ковать портал';
+    }
+  }
+
+  private showSecretHint(level: number): void {
+    const remaining = Math.max(1, 10 - level);
+    this.interactionCoach.dataset.state = 'secret';
+    this.interactionCoach.textContent = remaining <= 2
+      ? 'Скрытая кузница уже слышит твои удары…'
+      : 'В глубине миров отозвался тайный металл';
+    window.setTimeout(() => {
+      if (this.tutorialComplete) this.interactionCoach.dataset.state = 'done';
+    }, 3200);
   }
 
   private renderTeleportCounter(state: TeleportCounterState): void {
@@ -290,13 +392,8 @@ export class Experience {
     }
   }
 
-  private setLoading(value: number): void {
-    const percent = Math.round(value * 100);
-    this.loaderBar.style.width = `${percent}%`;
-    this.loaderValue.textContent = `${String(percent).padStart(2, '0')}%`;
-  }
-
   private unlockAudio(): void {
+    this.cinematicAudio.unlock();
     if (this.musicManuallyDisabled || this.musicEnabled || this.audioStarting) return;
     this.startMusic();
   }
@@ -306,6 +403,7 @@ export class Experience {
       this.musicManuallyDisabled = true;
       this.musicEnabled = false;
       this.music.pause();
+      this.cinematicAudio.setEnabled(false);
       this.updateSoundButton();
       return;
     }
@@ -321,9 +419,11 @@ export class Experience {
     void this.music.play().then(() => {
       this.audioUnlocked = true;
       this.musicEnabled = true;
+      this.cinematicAudio.setEnabled(true);
       this.updateSoundButton();
     }).catch(() => {
       this.musicEnabled = false;
+      this.cinematicAudio.setEnabled(false);
       this.updateSoundButton();
     }).finally(() => {
       this.audioStarting = false;
@@ -335,8 +435,16 @@ export class Experience {
     this.soundButton.setAttribute('aria-label', this.musicEnabled ? 'Выключить музыку' : 'Включить музыку');
   }
 
-  private playImpact(): void {
+  private updateQuietButton(): void {
+    this.quietButton.setAttribute('aria-pressed', String(this.quietMode));
+    this.quietButton.setAttribute('aria-label', this.quietMode ? 'Включить кинематографичные эффекты' : 'Включить спокойные эффекты');
+    const label = this.quietButton.querySelector<HTMLElement>('span:last-child');
+    if (label) label.textContent = this.quietMode ? 'Спокойно' : 'Эффекты';
+  }
+
+  private playImpact(power = 1): void {
     if (!this.audioUnlocked) return;
+    this.cinematicAudio.impact(power);
     this.hammerAudio.currentTime = 0;
     void this.hammerAudio.play().catch(() => undefined);
   }

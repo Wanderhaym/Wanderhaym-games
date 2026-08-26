@@ -84,11 +84,12 @@ export class GameEnvironmentManager {
     elapsed: number,
     frame: JourneyFrame,
     pointer: THREE.Vector2,
+    activity = 1,
   ): void {
     if (!this.activeTheme) return;
     const active = this.slots[this.activeSlot];
     if (!this.transitioning || !this.incomingTheme) {
-      active.update(delta, elapsed, 1, 0, pointer);
+      active.update(delta, elapsed, activity, 0, pointer);
       this.applyMood(this.activeTheme, 0.08);
       return;
     }
@@ -107,6 +108,8 @@ export class GameEnvironmentManager {
               ? 0.7
               : frame.route === 'ascent'
                 ? 0.62
+                : frame.route === 'relic-forge'
+                  ? 0.5
                 : frame.route === 'recoil'
                   ? 0.44
                   : 0.57;
@@ -122,15 +125,17 @@ export class GameEnvironmentManager {
               ? 0.52
               : frame.route === 'ascent'
                 ? 0.42
+                : frame.route === 'relic-forge'
+                  ? 0.54
                 : frame.route === 'recoil'
                   ? 0.6
                   : 0.36;
     const outgoingReveal = 1 - THREE.MathUtils.smoothstep(progress, 0.04, outgoingEnd);
     const outgoingDisperse = THREE.MathUtils.smoothstep(progress, spatial ? 0.08 : 0.04, outgoingEnd);
     const incomingReveal = THREE.MathUtils.smoothstep(progress, incomingStart, 0.94);
-    active.update(delta, elapsed, outgoingReveal, outgoingDisperse, pointer);
+    active.update(delta, elapsed, outgoingReveal * activity, outgoingDisperse, pointer);
     const incoming = this.slots[this.incomingSlot];
-    incoming.update(delta, elapsed, incomingReveal, 0, pointer);
+    incoming.update(delta, elapsed, incomingReveal * activity, 0, pointer);
     if (spatial) this.applyRouteChoreography(active, incoming, frame);
     this.applyMood(this.incomingTheme, THREE.MathUtils.smoothstep(progress, 0.28, 0.82));
     if (!frame.active && progress >= 1) this.finishTransition();
@@ -233,6 +238,13 @@ export class GameEnvironmentManager {
       incoming.group.position.z -= enter * 5.2;
       incoming.group.rotation.y -= enter * 0.38;
       incoming.group.scale.multiplyScalar(1 - enter * 0.2);
+    } else if (frame.route === 'relic-forge') {
+      const gate = Math.sin(progress * Math.PI * 8) * envelope;
+      outgoing.group.position.z -= out * 4.8;
+      outgoing.group.scale.set(1 - out * 0.34, 1 + gate * 0.08, 1 - out * 0.34);
+      incoming.group.position.z += enter * 6.2;
+      incoming.group.rotation.z = gate * 0.08;
+      incoming.group.scale.set(1 - enter * 0.42, 1 - enter * 0.18, 1 - enter * 0.42);
     }
   }
 }

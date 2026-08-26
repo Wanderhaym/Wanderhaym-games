@@ -29,8 +29,8 @@ export function detectQuality(): QualitySettings {
       pixelRatio: Math.min(devicePixelRatio, 1.15),
       bloom: false,
       shadows: false,
-      sparks: 42,
-      stars: 280,
+      sparks: 54,
+      stars: 360,
       fluidSize: 72,
       antialias: false,
     };
@@ -42,8 +42,8 @@ export function detectQuality(): QualitySettings {
       pixelRatio: Math.min(devicePixelRatio, 1.45),
       bloom: true,
       shadows: false,
-      sparks: 144,
-      stars: 520,
+      sparks: 220,
+      stars: 1200,
       fluidSize: 128,
       antialias: true,
     };
@@ -54,8 +54,8 @@ export function detectQuality(): QualitySettings {
     pixelRatio: Math.min(devicePixelRatio, 1.8),
     bloom: true,
     shadows: true,
-    sparks: 240,
-    stars: 850,
+    sparks: 420,
+    stars: 3200,
     fluidSize: 192,
     antialias: true,
   };

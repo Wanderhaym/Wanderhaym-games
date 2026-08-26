@@ -11,7 +11,8 @@ export type JourneyRoute =
   | 'rift'
   | 'slingshot'
   | 'ascent'
-  | 'recoil';
+  | 'recoil'
+  | 'relic-forge';
 
 export interface TransitionProfile {
   route: JourneyRoute;
@@ -45,6 +46,7 @@ const PROFILES: Record<JourneyRoute, TransitionProfile> = {
   slingshot: { route: 'slingshot', durationScale: 1.12, warp: 0.78, twist: 0.62, chromatic: 0.74, tunnelEnergy: 0.68, roll: 0.21, collapse: 0.9, fovKick: 15, cameraShake: 0.24 },
   recoil: { route: 'recoil', durationScale: 0.96, warp: 1.26, twist: -0.7, chromatic: 1.16, tunnelEnergy: 0.88, roll: 0.18, collapse: 1.16, fovKick: 12, cameraShake: 0.4 },
   ascent: { route: 'ascent', durationScale: 1.18, warp: 0.7, twist: 0.1, chromatic: 0.62, tunnelEnergy: 0.5, roll: 0.06, collapse: 0.72, fovKick: -5, cameraShake: 0.06 },
+  'relic-forge': { route: 'relic-forge', durationScale: 1.16, warp: 0.94, twist: 0.18, chromatic: 0.78, tunnelEnergy: 0.74, roll: 0.1, collapse: 1.08, fovKick: 7.5, cameraShake: 0.13 },
 };
 
 export class TransitionSystem {
