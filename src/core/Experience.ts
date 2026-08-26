@@ -414,8 +414,20 @@ export class Experience {
   private showCardTapCoach(clientX: number, clientY: number): void {
     if (this.cardTapTutorialComplete) return;
     this.cardTapTutorialComplete = true;
-    const coachX = Math.max(105, Math.min(innerWidth - 105, clientX));
-    const coachY = Math.max(105, Math.min(innerHeight - 76, clientY + 24));
+    const viewportPadding = 12;
+    const halfWidth = Math.min(
+      this.cardTapCoach.offsetWidth / 2,
+      innerWidth / 2 - viewportPadding,
+    );
+    const coachHeight = this.cardTapCoach.offsetHeight;
+    const coachX = Math.max(
+      viewportPadding + halfWidth,
+      Math.min(innerWidth - viewportPadding - halfWidth, clientX),
+    );
+    const coachY = Math.max(
+      viewportPadding,
+      Math.min(innerHeight - viewportPadding - coachHeight, clientY + 20),
+    );
     this.cardTapCoach.style.setProperty('--card-coach-x', `${coachX}px`);
     this.cardTapCoach.style.setProperty('--card-coach-y', `${coachY}px`);
     this.cardTapCoach.dataset.state = 'visible';
