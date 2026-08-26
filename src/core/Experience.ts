@@ -26,10 +26,19 @@ function required<T extends Element>(selector: string): T {
 }
 
 const PORTAL_TUTORIAL_KEY = 'wanderhaym.portalTutorial.v1';
+const CARD_TAP_TUTORIAL_KEY = 'wanderhaym.cardTapTutorial.v1';
 
 function hasCompletedPortalTutorial(): boolean {
   try {
     return localStorage.getItem(PORTAL_TUTORIAL_KEY) === 'complete';
+  } catch {
+    return false;
+  }
+}
+
+function hasCompletedCardTapTutorial(): boolean {
+  try {
+    return localStorage.getItem(CARD_TAP_TUTORIAL_KEY) === 'complete';
   } catch {
     return false;
   }
@@ -55,6 +64,7 @@ export class Experience {
   private readonly teleportCounterElement = required<HTMLElement>('#teleportCounter');
   private readonly teleportCounterValue = required<HTMLElement>('#teleportCounterValue');
   private readonly interactionCoach = required<HTMLElement>('#interactionCoach');
+  private readonly cardTapCoach = required<HTMLElement>('#cardTapCoach');
   private readonly music = required<HTMLAudioElement>('#music');
   private readonly loaderDemo = new URLSearchParams(location.search).has('loader-demo');
   private readonly hammerAudio = new Audio(hammerUrl);
@@ -74,6 +84,8 @@ export class Experience {
   private previousPortalReady = false;
   private portalReadySoundTimer: number | null = null;
   private tutorialComplete = hasCompletedPortalTutorial();
+  private cardTapTutorialComplete = hasCompletedCardTapTutorial();
+  private cardTapCoachTimer: number | null = null;
   private quietMode = false;
 
   constructor() {
@@ -243,6 +255,7 @@ export class Experience {
       const dy = event.clientY - start.y;
       if (coreHoldTriggered && Math.hypot(dx, dy) < 38) return;
       if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) {
+        this.hideCardTapCoach();
         this.lastInteractiveTap = null;
         this.artifactPreviewIndex = null;
         this.world.clearPointerInteraction();
@@ -260,10 +273,17 @@ export class Experience {
         if (event.pointerType === 'touch' && this.world.touchInteractiveCover(event.clientX, event.clientY)) {
           this.artifactPreviewIndex = null;
           const now = performance.now();
-          const activate = this.lastInteractiveTap?.index === this.activeIndex
-            && now - this.lastInteractiveTap.time < 950;
+          // A touch reveal stays armed until the visitor taps the same card
+          // again or navigates away. This is a deliberate two-step action,
+          // not a rushed operating-system double tap.
+          const activate = this.lastInteractiveTap?.index === this.activeIndex;
           this.lastInteractiveTap = activate ? null : { index: this.activeIndex, time: now };
-          if (activate) this.world.pick(event.clientX, event.clientY);
+          if (activate) {
+            this.hideCardTapCoach();
+            this.world.pick(event.clientX, event.clientY);
+          } else {
+            this.showCardTapCoach(event.clientX, event.clientY);
+          }
           return;
         }
         this.lastInteractiveTap = null;
@@ -274,6 +294,7 @@ export class Experience {
       }
     });
     this.canvas.addEventListener('pointercancel', () => {
+      this.hideCardTapCoach();
       this.world.endCoreHold();
       this.touchStart = null;
       this.artifactPreviewIndex = null;
@@ -301,6 +322,7 @@ export class Experience {
   }
 
   private select(index: number, transition: 'slide' | 'space' = 'slide'): void {
+    this.hideCardTapCoach();
     const normalized = (index + allGames.length) % allGames.length;
     if (normalized === this.activeIndex) return;
     this.artifactPreviewIndex = null;
@@ -371,6 +393,33 @@ export class Experience {
         : state.hits > 0
           ? 'Продолжай ковать — лапа собирается'
           : 'Нажми на ядро: кот начнёт ковать портал';
+    }
+  }
+
+  private showCardTapCoach(clientX: number, clientY: number): void {
+    if (this.cardTapTutorialComplete) return;
+    this.cardTapTutorialComplete = true;
+    const coachX = Math.max(105, Math.min(innerWidth - 105, clientX));
+    const coachY = Math.max(105, Math.min(innerHeight - 76, clientY + 24));
+    this.cardTapCoach.style.setProperty('--card-coach-x', `${coachX}px`);
+    this.cardTapCoach.style.setProperty('--card-coach-y', `${coachY}px`);
+    this.cardTapCoach.dataset.state = 'visible';
+    this.cardTapCoach.setAttribute('aria-hidden', 'false');
+    try {
+      localStorage.setItem(CARD_TAP_TUTORIAL_KEY, 'complete');
+    } catch {
+      // Showing the hint once per session is still useful without storage.
+    }
+    if (this.cardTapCoachTimer !== null) window.clearTimeout(this.cardTapCoachTimer);
+    this.cardTapCoachTimer = window.setTimeout(() => this.hideCardTapCoach(), 3600);
+  }
+
+  private hideCardTapCoach(): void {
+    this.cardTapCoach.dataset.state = 'hidden';
+    this.cardTapCoach.setAttribute('aria-hidden', 'true');
+    if (this.cardTapCoachTimer !== null) {
+      window.clearTimeout(this.cardTapCoachTimer);
+      this.cardTapCoachTimer = null;
     }
   }
 
