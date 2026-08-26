@@ -10,6 +10,9 @@ import { ForgeLoader } from '../ui/ForgeLoader';
 
 declare global {
   interface Window {
+    ReactNativeWebView?: {
+      postMessage: (message: string) => void;
+    };
     Wanderhaym3D: {
       getState: () => Record<string, unknown>;
       next: () => void;
@@ -347,12 +350,16 @@ export class Experience {
   private openGame(index: number): void {
     const game = allGames[index];
     const url = `https://vk.com/app${game.appId}`;
-    if (bridge.isEmbedded()) {
+    const isReactNativeVk = typeof window.ReactNativeWebView?.postMessage === 'function';
+    const isNativeVk = bridge.isWebView() || isReactNativeVk;
+    if (bridge.isEmbedded() || isReactNativeVk) {
       void bridge.send('VKWebAppOpenApp', {
         app_id: game.appId,
-        location: 'default',
       }).catch(() => {
-        window.location.href = url;
+        // A web redirect from the native VK client opens an isolated browser
+        // session and can incorrectly ask an already signed-in user to log in.
+        // Keep that fallback only for VK's desktop/mobile web iframe.
+        if (!isNativeVk) window.location.href = url;
       });
       return;
     }
