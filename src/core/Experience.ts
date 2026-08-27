@@ -62,6 +62,8 @@ export class Experience {
   private readonly title = required<HTMLElement>('#gameTitle');
   private readonly description = required<HTMLElement>('#gameDescription');
   private readonly tag = required<HTMLElement>('#gameTag');
+  private readonly gameLaunchButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-game-launch]')];
+  private readonly gameLaunchLabel = required<HTMLElement>('#gameLaunchLabel');
   private readonly progress = required<HTMLElement>('#progress');
   private readonly accessibleGames = required<HTMLElement>('#accessibleGames');
   private readonly soundButton = required<HTMLButtonElement>('#soundButton');
@@ -225,6 +227,15 @@ export class Experience {
   private bindEvents(): void {
     required<HTMLButtonElement>('#previousButton').addEventListener('click', () => this.navigate(-1));
     required<HTMLButtonElement>('#nextButton').addEventListener('click', () => this.navigate(1));
+    this.gameLaunchButtons.forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.hideCardTapCoach();
+        this.lastInteractiveTap = null;
+        this.unlockAudio();
+        this.openGame(this.activeIndex);
+      });
+    });
     this.soundButton.addEventListener('click', (event) => {
       event.stopPropagation();
       this.toggleMusic();
@@ -395,6 +406,8 @@ export class Experience {
     this.title.textContent = game.title;
     this.description.textContent = game.description;
     this.tag.textContent = game.tag;
+    this.gameLaunchLabel.textContent = `Играть в «${game.title}»`;
+    this.gameLaunchButtons.forEach((button) => button.setAttribute('aria-label', `Играть в «${game.title}»`));
     [...this.progress.children].forEach((marker, index) => marker.classList.toggle('is-active', index === this.activeIndex));
     this.ui.classList.remove('is-shifting');
     requestAnimationFrame(() => this.ui.classList.add('is-shifting'));
