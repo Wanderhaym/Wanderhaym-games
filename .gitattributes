@@ -1,0 +1,2 @@
+# Keep the approved portable kit byte-for-byte across Windows and CI.
+static/wanderhaym-loader/** -text

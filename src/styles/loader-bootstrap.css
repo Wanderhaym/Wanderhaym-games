@@ -1,0 +1,16 @@
+#loaderBootstrap {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: grid;
+  place-content: center;
+  gap: 16px;
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+  background: #080604;
+  color: #ff6b18;
+  font: 800 clamp(24px, 6vw, 52px)/1 system-ui, sans-serif;
+}
+#loaderBootstrap small { color: #c3aaa0; font-size: 12px; letter-spacing: .15em; line-height: 1.6; }
+#loaderBootstrap button { padding: 12px; border: 1px solid #ff6b18; border-radius: 24px; background: #241008; color: #fff; cursor: pointer; }

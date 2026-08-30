@@ -34,6 +34,10 @@
 
 ## Локальная разработка
 
+Актуальная заставка — **Wanderhaym Loader 1.0.2**, общая для сайта и VK Mini App.
+Подключение, синхронизация утверждённых файлов и проверки описаны в
+[`docs/LOADER.md`](docs/LOADER.md).
+
 ```bash
 npm install
 npm run dev

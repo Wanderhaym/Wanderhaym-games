@@ -1,0 +1,29 @@
+Wanderhaym Loader Kit
+Version: 1.0.2
+Created: 2026-08-27
+Updated: 2026-08-31
+Source project: Wanderhaym Games
+Source commit: 7b0b646d838c141f5d15ade49e2a1c3bbe29b563
+
+Portable build includes:
+- visually-ready first hammer hit;
+- real monotonic loading progress;
+- approved idle, strike, recovery and blink frames;
+- forced blink during long continuous loading;
+- sparks and hammer audio;
+- final expanding paw transition;
+- staged poster, strike and secondary asset loading;
+- explicit image load/decode failures;
+- slow-connection and stalled-progress watchdogs;
+- safe non-blocking completion when loader media is unavailable;
+- desktop, portrait mobile and landscape mobile layouts.
+
+1.0.2 improvements:
+- explicit complete() gate; truthful progress capped at 99% until app readiness;
+- recoverable stall warning and neutral long-load messaging;
+- automatic resource cleanup and cancellation of late asset callbacks;
+- complete/destroy/fail promises always settle;
+- poster reveal plus 180 ms hold before the first hit;
+- milestone-driven hits with 1.5 s minimum spacing;
+- two-worker asset preparation and blink loading after the first cycle;
+- browser regression suite in tests/ (not required in deployed games).

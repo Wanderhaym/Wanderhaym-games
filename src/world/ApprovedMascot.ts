@@ -1,15 +1,16 @@
 import * as THREE from 'three';
-import cat00Url from '../../assets/mascot/runtime/cat-00-idle.webp?url';
-import cat01Url from '../../assets/mascot/runtime/cat-01-ready.webp?url';
-import cat02Url from '../../assets/mascot/runtime/cat-02-windup.webp?url';
-import cat03Url from '../../assets/mascot/runtime/cat-03-swing.webp?url';
-import cat04Url from '../../assets/mascot/runtime/cat-04-contact.webp?url';
-import cat05Url from '../../assets/mascot/runtime/cat-05-impact.webp?url';
-import recoverUrl from '../../assets/mascot/runtime/cat-recover.webp?url';
-import blinkHalfUrl from '../../assets/mascot/runtime/cat-blink-half.webp?url';
-import blinkClosedUrl from '../../assets/mascot/runtime/cat-blink.webp?url';
-import idlePlatformUrl from '../../assets/mascot/runtime/platform-idle.webp?url';
-import hitPlatformUrl from '../../assets/mascot/runtime/platform-hit.webp?url';
+import { loaderAsset } from '../ui/loaderAssets';
+const cat00Url = loaderAsset('cat-00-idle.webp');
+const cat01Url = loaderAsset('cat-01-ready.webp');
+const cat02Url = loaderAsset('cat-02-windup.webp');
+const cat03Url = loaderAsset('cat-03-swing.webp');
+const cat04Url = loaderAsset('cat-04-contact.webp');
+const cat05Url = loaderAsset('cat-05-impact.webp');
+const recoverUrl = loaderAsset('cat-recover.webp');
+const blinkHalfUrl = loaderAsset('cat-blink-half.webp');
+const blinkClosedUrl = loaderAsset('cat-blink.webp');
+const idlePlatformUrl = loaderAsset('platform-idle.webp');
+const hitPlatformUrl = loaderAsset('platform-hit.webp');
 import type { ScenePhase } from './SceneDirector';
 
 type ImpactCallback = (worldPosition: THREE.Vector3) => void;
