@@ -86,6 +86,7 @@ export class Experience {
   private readonly world: GameWorld;
   private teleportTotal: number | null = null;
   private activeIndex = 0;
+  private pendingJourneyIndex: number | null = null;
   private lastNavigation = 0;
   private touchStart: { x: number; y: number; time: number } | null = null;
   private lastInteractiveTap: { index: number; time: number } | null = null;
@@ -140,7 +141,14 @@ export class Experience {
               : 0.16;
         this.music.volume += (targetMusicVolume - this.music.volume) * 0.085;
       },
-      onArrival: (index) => this.cinematicAudio.arrival(index),
+      onArrival: (index) => {
+        this.cinematicAudio.arrival(index);
+        if (this.pendingJourneyIndex === index && this.activeIndex === index) {
+          this.pendingJourneyIndex = null;
+          this.renderGame();
+          this.gameLaunchButtons.forEach((button) => { button.disabled = false; });
+        }
+      },
       onSecretHint: (level) => {
         this.cinematicAudio.secretHint(level);
         this.showSecretHint(level);
@@ -368,9 +376,13 @@ export class Experience {
     if (normalized === this.activeIndex) return;
     this.artifactPreviewIndex = null;
     this.activeIndex = normalized;
+    this.pendingJourneyIndex = this.activeIndex;
+    // A launch belongs to the arrived world, never to an in-flight destination.
+    this.gameLaunchButtons.forEach((button) => { button.disabled = true; });
     this.world.setActive(this.activeIndex, false, transition);
-    this.renderGame();
-    if (transition === 'slide') this.world.hit(false);
+    if (transition === 'slide') {
+      this.world.hit(false);
+    }
   }
 
   private navigate(direction: number): void {
