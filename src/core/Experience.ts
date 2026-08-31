@@ -1,10 +1,10 @@
 import musicUrl from '../../assets/music.mp3?url';
-import hammerUrl from '../../assets/mascot/hammer-hit.wav?url';
 import { allGames, games } from '../data/games';
 import { detectQuality } from './quality';
 import { GameWorld } from '../world/GameWorld';
 import { TeleportCounter, type TeleportCounterState } from '../services/TeleportCounter';
 import { CinematicAudio } from '../audio/CinematicAudio';
+import { playAppImpact } from '../audio/appImpactAudio';
 import { ForgeLoader } from '../ui/ForgeLoader';
 import { hostPlatform } from '../platform/HostPlatform';
 
@@ -81,7 +81,6 @@ export class Experience {
   private readonly cardTapCoach = required<HTMLElement>('#cardTapCoach');
   private readonly music = required<HTMLAudioElement>('#music');
   private readonly loaderDemo = new URLSearchParams(location.search).has('loader-demo');
-  private readonly hammerAudio = new Audio(hammerUrl);
   private readonly teleportCounter = new TeleportCounter();
   private readonly cinematicAudio = new CinematicAudio();
   private readonly world: GameWorld;
@@ -92,7 +91,6 @@ export class Experience {
   private lastInteractiveTap: { index: number; time: number } | null = null;
   private artifactPreviewIndex: number | null = null;
   private musicEnabled = false;
-  private audioUnlocked = false;
   private audioStarting = false;
   private musicManuallyDisabled = false;
   private previousPortalReady = false;
@@ -114,8 +112,6 @@ export class Experience {
     this.music.preload = 'none';
     this.music.setAttribute('playsinline', '');
     this.cinematicAudio.attachMediaElement(this.music);
-    this.hammerAudio.volume = 0.065;
-    this.hammerAudio.preload = 'auto';
 
     this.world = new GameWorld(this.canvas, allGames, detectQuality(), {
       onProgress: (value) => this.forgeLoader.setProgress(this.loaderDemo ? value * 0.62 : value),
@@ -562,7 +558,6 @@ export class Experience {
     this.music.muted = false;
     this.music.volume = 0.16;
     void this.music.play().then(() => {
-      this.audioUnlocked = true;
       this.musicEnabled = true;
       this.cinematicAudio.setEnabled(true);
       this.updateSoundButton();
@@ -588,9 +583,9 @@ export class Experience {
   }
 
   private playImpact(power = 1): void {
-    if (!this.audioUnlocked) return;
+    // Background WebGL preparation must not add invisible hits to the splash.
+    if (!this.loader.classList.contains('is-hidden')) return;
     this.cinematicAudio.impact(power);
-    this.hammerAudio.currentTime = 0;
-    void this.hammerAudio.play().catch(() => undefined);
+    playAppImpact('world', 0.065);
   }
 }

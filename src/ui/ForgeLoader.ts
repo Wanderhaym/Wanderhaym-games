@@ -1,4 +1,6 @@
 import { loaderBase } from './loaderAssets';
+import { appImpactAudio, playAppImpact } from '../audio/appImpactAudio';
+import { connectLoaderImpactSound } from './LoaderImpactSound';
 
 // Single shared instance: the loader starts before the large WebGL chunk.
 interface LoaderRuntime {
@@ -11,13 +13,20 @@ interface LoaderRuntime {
 }
 let runtime: LoaderRuntime | null = null;
 let initialization: Promise<void> | null = null;
+let disconnectImpactSound: (() => void) | null = null;
 export function initializeForgeLoader(): Promise<void> {
   if (initialization) return initialization;
   initialization = (async () => {
+    appImpactAudio.prepare();
     const base = loaderBase;
     const moduleUrl = new URL('wanderhaym-loader.js?v=1.0.2', base).href;
     const { WanderhaymForgeLoader } = await import(/* @vite-ignore */ moduleUrl);
-    runtime = new WanderhaymForgeLoader({ assetBase: new URL('assets/', base).href }) as LoaderRuntime;
+    runtime = new WanderhaymForgeLoader({ assetBase: new URL('assets/', base).href, soundVolume: 0 }) as LoaderRuntime;
+    disconnectImpactSound = connectLoaderImpactSound(
+      runtime.root,
+      () => playAppImpact('loader', 0.075),
+      () => appImpactAudio.stopPending(),
+    );
     runtime.root.id = 'loader';
     runtime.root.dataset.loaderVersion = '1.0.2';
     document.getElementById('loaderBootstrap')?.remove();
@@ -34,11 +43,12 @@ export class ForgeLoader {
   setProgress(value: number): void { this.instance.setProgress(value); }
   ready(): Promise<void> { return this.instance.ready(); }
   complete(): Promise<void> { return this.instance.complete(); }
-  fail(title: string, message: string): void { this.instance.fail(title, message); }
-  destroy(): void { this.instance.destroy(); }
+  fail(title: string, message: string): void { disconnectImpactSound?.(); this.instance.fail(title, message); }
+  destroy(): void { disconnectImpactSound?.(); this.instance.destroy(); }
 }
 export function failForgeStartup(error: unknown): void {
   console.error('Could not start Wanderhaym', error);
+  disconnectImpactSound?.();
   if (runtime) {
     runtime.fail('КУЗНЯ ОСТАНОВЛЕНА', 'Не удалось открыть мир. Проверь соединение и повтори.');
     return;
